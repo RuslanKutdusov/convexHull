@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "Image.hpp"
 
 #define PI 3.1415926f
