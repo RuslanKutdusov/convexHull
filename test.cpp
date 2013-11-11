@@ -1,6 +1,7 @@
 #include <math.h>
 
 #include "Image.hpp"
+#include "FunctionOfAny.hpp"
 
 #define PI 3.1415926f
 
