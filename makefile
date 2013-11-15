@@ -1,4 +1,4 @@
-CFLAGS = -O2 -c
+CFLAGS = -O2 -c -Wall -pedantic
 
 test: test_cpp Image
 	clang++ -lpng test.o Image.o -o test

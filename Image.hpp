@@ -62,7 +62,7 @@ private:
 
     //
     Image()
-        : m_image( NULL ), m_width( 0 ), m_height( 0 )
+        : m_width( 0 ), m_height( 0 ), m_size( 0 ), m_image( NULL )
     {
 
     }
