@@ -7,21 +7,23 @@ class FunctionOfAny
 public:
 	//
 	typedef boost::unordered_map< Domain, Codomain > Container;
-	typedef typename Container::iterator Iterator;
-	typedef typename Container::const_iterator ConstIterator;
+	typedef typename Container::iterator iterator;
+	typedef typename Container::const_iterator const_iterator;
 	
 	// ctor / dtor
 					FunctionOfAny();
 					FunctionOfAny( const FunctionOfAny& functionOfAny );
 					~FunctionOfAny();
 
-	Iterator 		begin();
-	Iterator 		end();
+	iterator 		begin();
+	iterator 		end();
 
-	ConstIterator 	begin() const;
-	ConstIterator 	end() const;
+	const_iterator 	begin() const;
+	const_iterator 	end() const;
 				
 	size_t 			size() const;
+
+	Codomain&		define( const Domain& x );
 
 private:
 
@@ -55,7 +57,7 @@ FunctionOfAny< Domain, Codomain >::~FunctionOfAny()
 
 //
 template< class Domain, class Codomain >
-typename FunctionOfAny< Domain, Codomain >::Iterator FunctionOfAny< Domain, Codomain >::begin()
+typename FunctionOfAny< Domain, Codomain >::iterator FunctionOfAny< Domain, Codomain >::begin()
 {
 	return m_table.begin();
 }
@@ -63,7 +65,7 @@ typename FunctionOfAny< Domain, Codomain >::Iterator FunctionOfAny< Domain, Codo
 
 //
 template< class Domain, class Codomain >
-typename FunctionOfAny< Domain, Codomain >::Iterator FunctionOfAny< Domain, Codomain >::end()
+typename FunctionOfAny< Domain, Codomain >::iterator FunctionOfAny< Domain, Codomain >::end()
 {
 	return m_table.end();
 }
@@ -71,7 +73,7 @@ typename FunctionOfAny< Domain, Codomain >::Iterator FunctionOfAny< Domain, Codo
 
 //
 template< class Domain, class Codomain >
-typename FunctionOfAny< Domain, Codomain >::ConstIterator FunctionOfAny< Domain, Codomain >::begin() const
+typename FunctionOfAny< Domain, Codomain >::const_iterator FunctionOfAny< Domain, Codomain >::begin() const
 {
 	return m_table.begin();
 }
@@ -79,7 +81,7 @@ typename FunctionOfAny< Domain, Codomain >::ConstIterator FunctionOfAny< Domain,
 
 //
 template< class Domain, class Codomain >
-typename FunctionOfAny< Domain, Codomain >::ConstIterator FunctionOfAny< Domain, Codomain >::end() const
+typename FunctionOfAny< Domain, Codomain >::const_iterator FunctionOfAny< Domain, Codomain >::end() const
 {
 	return m_table.end();
 }
@@ -90,4 +92,21 @@ template< class Domain, class Codomain >
 size_t FunctionOfAny< Domain, Codomain >::size() const
 {
 	return m_table.size();
+}
+
+
+//
+template< class Domain, class Codomain >
+Codomain& FunctionOfAny< Domain, Codomain >::define( const Domain& x )
+{
+	iterator it = m_table.find( x );
+	if ( it != m_table.end() ) 
+	{
+		return it->second;
+	} 
+	else 
+	{
+		m_table[ x ] = Codomain();
+		return m_table[ x ];
+	}
 }
