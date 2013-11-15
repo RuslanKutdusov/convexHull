@@ -50,6 +50,8 @@ struct Image
 
     void writePixel( const uint16_t& x, const uint16_t& y, const uint32_t& color = 0u )
     {
+    	if( x > m_width || y > m_height )
+    		return;
         m_image[ y * m_width + x ] = color;
     }
 
