@@ -1,7 +1,7 @@
 CFLAGS = -O2 -c -Wall -pedantic
 
 opengl: openglcpp ScalarFunction
-	clang++ opengl.o ScalarFunction.o -o opengl -lSDL -lGLU -lGL
+	clang++ opengl.o ScalarFunction.o -o opengl -lSDL -lGLU -lGL -lGLEW
 
 openglcpp:
 	clang++ $(CFLAGS) opengl.cpp

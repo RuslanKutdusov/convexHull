@@ -1,3 +1,4 @@
+#include "GL/glew.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <SDL/SDL.h>
@@ -17,16 +18,16 @@ FP g_funcMaxVal = -FLT_MAX;
 FP g_convexHullMinVal = FLT_MAX;
 FP g_convexHullMaxVal = -FLT_MAX;
 
-GLuint g_funcVBO_V;
-GLuint g_funcVBO_C;
-GLuint g_convexHullVBO_V;
-GLuint g_convexHullVBO_C;
+size_t g_vertexNumber;
+GLuint g_funcVBO;
+GLuint g_convexHullVBO;
 
 struct Vertex
 {
    float x;
    float y;
    float z;
+   Vertex(){}
    Vertex( float x_, float y_, float z_ )
       : x( x_ ), y( y_ ), z( z_ )
    {
@@ -82,41 +83,33 @@ void main_loop_function()
 
       if( drawFunc )
       {
-         for( ScalarFunction::const_iterator iter = g_func.begin(); iter != g_func.end(); ++iter )
-         {
-            glBegin( GL_POINTS );
+         glBindBuffer( GL_ARRAY_BUFFER, g_funcVBO );
 
-            if( !drawConvexHull )
-            {
-               float colorFactor = ( iter->second - g_funcMinVal ) / ( g_funcMaxVal - g_funcMinVal );
-               glColor3ub( 255 * colorFactor, 127 * colorFactor, 255 * ( 1.0f - colorFactor ) );
-            }
-            else
-               glColor3ub( 255, 255, 0 );
+         glEnableClientState( GL_VERTEX_ARRAY );
+         glEnableClientState( GL_COLOR_ARRAY );
 
-            glVertex3f( iter->first[ 0 ], iter->first[ 1 ], iter->second );
+         glVertexPointer( 3, GL_FLOAT, 0, 0 );
+         glColorPointer( 3, GL_FLOAT, 0, (void*)( sizeof( Vertex ) * g_vertexNumber ) );
+         glDrawArrays( GL_POINTS, 0, g_vertexNumber );  
 
-            glEnd();
-         }
+         glDisableClientState( GL_VERTEX_ARRAY );
+         glDisableClientState( GL_COLOR_ARRAY );
       }
 
       if( drawConvexHull )
-         for( ScalarFunction::const_iterator iter = g_convexHull.begin(); iter != g_convexHull.end(); ++iter )
-         {
-            glBegin( GL_POINTS );
-            
-            if( !drawFunc )
-            {
-               float colorFactor = ( iter->second - g_convexHullMinVal ) / ( g_convexHullMaxVal - g_convexHullMinVal );
-               glColor3ub( 255 * colorFactor, 127 * colorFactor, 255 * ( 1.0f - colorFactor ) );
-            }
-            else
-               glColor3ub( 0, 255, 255 );
+      {
+         glBindBuffer( GL_ARRAY_BUFFER, g_convexHullVBO );
 
-            glVertex3f( iter->first[ 0 ], iter->first[ 1 ], iter->second );
+         glEnableClientState( GL_VERTEX_ARRAY );
+         glEnableClientState( GL_COLOR_ARRAY );
 
-            glEnd();
-         }
+         glVertexPointer( 3, GL_FLOAT, 0, 0 );
+         glColorPointer( 3, GL_FLOAT, 0, (void*)( sizeof( Vertex ) * g_vertexNumber ) );
+         glDrawArrays( GL_POINTS, 0, g_vertexNumber );  
+         
+         glDisableClientState( GL_VERTEX_ARRAY );
+         glDisableClientState( GL_COLOR_ARRAY );
+      }
 
       glBegin( GL_LINES );
          glColor3ub( 255, 0, 0 ); glVertex3f( 0.0f, 0.0f, 0.0f );
@@ -180,7 +173,7 @@ void GL_Setup(int width, int height)
 
 void buildConvex()
 {
-   FP step = 0.05f;
+   FP step = 0.02f;
 
    for( FP x = -5.0; x <= 5.0; x += step ) 
    {
@@ -204,7 +197,7 @@ void buildConvex()
 
    g_convexHull = g_func;
 
-   g_convexHull.makeConvex( 2, 10 );
+   g_convexHull.makeConvex( 2, 5 );
 
    for( ScalarFunction::const_iterator iter = g_convexHull.begin(); iter != g_convexHull.end(); ++iter )
    {
@@ -215,6 +208,63 @@ void buildConvex()
          g_convexHullMinVal = z;
    }
 }
+
+
+void GenBuffer( GLuint* vbo, size_t size, Vertex* vertex, Vertex* color )
+{
+   glGenBuffers( 1, vbo );
+
+   glBindBuffer( GL_ARRAY_BUFFER, *vbo );
+
+   size_t length = sizeof( Vertex ) * size;
+   glBufferData( GL_ARRAY_BUFFER, length * 2, NULL, GL_STATIC_DRAW );
+   glBufferSubData( GL_ARRAY_BUFFER, 0, length, vertex );
+   glBufferSubData( GL_ARRAY_BUFFER, length, length, color );
+
+   glBindBuffer( GL_ARRAY_BUFFER, 0 );
+}
+
+
+void CreateBuffers()
+{
+   g_vertexNumber = g_func.size();
+
+   Vertex* funcVertexData = new Vertex[ g_vertexNumber ];
+   Vertex* funcColorData = new Vertex[ g_vertexNumber ];
+   Vertex* convexHullVertexData = new Vertex[ g_vertexNumber ];
+   Vertex* convexHullColorData = new Vertex[ g_vertexNumber ];
+
+   size_t i = 0;
+   for( ScalarFunction::const_iterator iter = g_func.begin(); iter != g_func.end(); ++iter )
+   {
+      funcVertexData[ i ]( iter->first[ 0 ], iter->first[ 1 ], iter->second );
+
+      float colorFactor = ( iter->second - g_funcMinVal ) / ( g_funcMaxVal - g_funcMinVal );
+      funcColorData[ i ]( colorFactor, colorFactor * 0.5f, 1.0f - colorFactor );      
+
+      i++;
+   }
+
+   i = 0;
+   for( ScalarFunction::const_iterator iter = g_convexHull.begin(); iter != g_convexHull.end(); ++iter )
+   {
+      convexHullVertexData[ i ]( iter->first[ 0 ], iter->first[ 1 ], iter->second );
+
+      float colorFactor = ( iter->second - g_convexHullMinVal ) / ( g_convexHullMaxVal - g_convexHullMinVal );
+      convexHullColorData[ i ]( 1.0f - colorFactor, colorFactor, colorFactor * 0.5f );      
+
+      i++;
+   }   
+
+   GenBuffer( &g_funcVBO, g_vertexNumber, funcVertexData, funcColorData );
+   GenBuffer( &g_convexHullVBO, g_vertexNumber, convexHullVertexData, convexHullColorData );
+
+   delete[] funcVertexData;
+   delete[] funcColorData;
+   delete[] convexHullVertexData;
+   delete[] convexHullColorData;
+}
+
 
 int main()
 {
@@ -233,7 +283,19 @@ int main()
 
    GL_Setup( window_width, window_height );
 
+   GLenum err = glewInit();
+   if (GLEW_OK != err)
+   {
+     /* Problem: glewInit failed, something is seriously wrong. */
+     fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
+   }
+   fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
+
    buildConvex();
+   CreateBuffers();
 
    main_loop_function();
+
+   glDeleteBuffers(1, &g_funcVBO );
+   glDeleteBuffers(1, &g_convexHullVBO );
 }
