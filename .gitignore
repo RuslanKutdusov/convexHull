@@ -1,4 +1,9 @@
 *.o
 out.png
 test
+opengl
+data1
+data2
+data3
+data4
 
