@@ -25,6 +25,8 @@ public:
 
 	Codomain&		define( const Domain& x );
 
+	const Codomain& at( const Domain& x );
+
 private:
 
 	Container 		m_table;
@@ -109,4 +111,12 @@ Codomain& FunctionOfAny< Domain, Codomain >::define( const Domain& x )
 		m_table[ x ] = Codomain();
 		return m_table[ x ];
 	}
+}
+
+
+//
+template< class Domain, class Codomain >
+const Codomain& FunctionOfAny< Domain, Codomain >::at( const Domain& x )
+{
+	return m_table[ x ];
 }

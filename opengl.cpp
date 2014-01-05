@@ -230,7 +230,7 @@ void buildConvex()
    clock_gettime( CLOCK_REALTIME, &tp );
    startTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
 
-   g_convexHull.makeConvex( 2, 50 );
+   g_convexHull.makeConvexMultiThread( 2, 50, 2 );
 
    clock_gettime( CLOCK_REALTIME, &tp );
    endTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
@@ -308,7 +308,7 @@ void CreateBuffers()
 int main()
 {
    buildConvex();
-
+   
    SDL_Init( SDL_INIT_VIDEO );
    const SDL_VideoInfo* info = SDL_GetVideoInfo();	
 
