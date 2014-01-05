@@ -34,18 +34,21 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 
 		// not good enough
 		bool shift = true;
-		for( size_t k = 0; ( k < fi.size() ) && shift; k++ )
+		for( size_t k = 0; ( k < dimX ) && shift; k++ )
 		{
-			fi[ k ] += dFi;
-			if( fi[ k ] - M_PI > EPSILON )
+			if( fabs( fi[ k ] - M_PI ) <= EPSILON )
 			{
 				fi[ k ] = 0.0;
-				shift = true;
+				shift = true;	
 			}
 			else
 			{
+				fi[ k ] += dFi;
 				shift = false;
 			}
+
+			if( fi[ k ] - M_PI > EPSILON )
+				fi[ k ] = M_PI;
 		}
 
 		hyperplanes[ i ][ n ] = 0.0; 
