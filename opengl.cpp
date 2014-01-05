@@ -1,12 +1,23 @@
+// visualize convex hull
+// control:
+// left/right arrow - rotate around Z axis
+// up/down arrow - up/down eye pos
+// page up/page down - up/down look at 
+// F - show/hide function
+// H - show/hide convex hull
+// W/S -
+// LSHIFT - force
 #include "GL/glew.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <SDL/SDL.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "ScalarFunction.hpp"
 
-#define window_width  640
-#define window_height 480
+#define window_width  1366
+#define window_height 768
 
 
 bool key[321];
@@ -60,12 +71,12 @@ bool events()
 
 void main_loop_function()
 {
-   float angleX = 0.0f;
    float angleY = 0.0f;
    float angleZ = 0.0f;
-   const float angleStep = 0.1f;
+   const float angleStep = 0.01f;
    float camZ = -20.0f;
-   const float camZStep = 1.0f;
+   const float camZStep = 0.1f;
+   float camAtZ = 0.0f;
 
    bool drawFunc = true;
    bool lastKeyFState = key[ SDLK_f ];
@@ -77,8 +88,8 @@ void main_loop_function()
       glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
       glLoadIdentity();
 
-      gluLookAt( sin( angleZ ) * cos( angleY ) * camZ, cos( angleZ ) * cos( angleY ) * camZ, sin( angleY ) * camZ,
-               0.0f, 0.0f, 0.0f, 
+      gluLookAt( sin( angleZ ) * cos( angleY ) * camZ, cos( angleZ ) * cos( angleY ) * camZ, sin( angleY ) * camZ + camAtZ,
+               0.0f, 0.0f, camAtZ, 
                0.0f, 0.0f, 1.0f );
 
       if( drawFunc )
@@ -123,26 +134,39 @@ void main_loop_function()
       glEnd();
 
    	SDL_GL_SwapBuffers();
+
+      float force = 1.0f;
+
+      if( key[ SDLK_LSHIFT ] )
+         force = 5.0f;
       
       if( key[ SDLK_RIGHT ] ) 
-         angleZ -= angleStep; 
+         angleZ -= angleStep * force; 
       if( key[ SDLK_LEFT ] )
-         angleZ += angleStep; 
+         angleZ += angleStep * force; 
 
       if( key[ SDLK_UP ] ) 
-         angleY -= angleStep; 
+      {
+         angleY -= angleStep * force; 
+         if( angleY <= -M_PI_2 )
+            angleY = -M_PI_2;
+      }
       if( key[ SDLK_DOWN ] )
-         angleY += angleStep; 
+      {
+         angleY += angleStep * force; 
+         if( angleY >= M_PI_2 )
+            angleY = M_PI_2;
+      }
 
       if( key[ SDLK_PAGEUP ] ) 
-         angleX -= angleStep; 
+         camAtZ += camZStep * force;
       if( key[ SDLK_PAGEDOWN ] )
-         angleX += angleStep; 
+         camAtZ -= camZStep * force;
 
       if( key[ SDLK_w ] ) 
-         camZ += camZStep;
+         camZ += camZStep * force;
       if( key[ SDLK_s ] )
-         camZ -= camZStep;
+         camZ -= camZStep * force;
 
       if( key[ SDLK_f ] != lastKeyFState && !key[ SDLK_f ] )
          drawFunc = !drawFunc;
@@ -165,7 +189,7 @@ void GL_Setup(int width, int height)
    glMatrixMode( GL_PROJECTION );
    glEnable( GL_DEPTH_TEST );
    glLoadIdentity();
-   gluPerspective( 60.0f, (float)width/height, 0.01f, 100.0f );
+   gluPerspective( 60.0f, (float)width/height, 0.01f, 100000.0f );
 
    glMatrixMode( GL_MODELVIEW );
 }
@@ -173,7 +197,9 @@ void GL_Setup(int width, int height)
 
 void buildConvex()
 {
-   FP step = 0.02f;
+   printf( "Build function...\n" );
+
+   FP step = 0.01f;
 
    for( FP x = -5.0; x <= 5.0; x += step ) 
    {
@@ -184,7 +210,6 @@ void buildConvex()
          v[ 1 ] = y;
 
          if (x * x + y * y >= 25) continue;
-
          FP z = sqrt( x * x + y * y ) * sin( sqrt( x * x + y * y ) );
          g_func.define( v ) = z;
 
@@ -197,7 +222,21 @@ void buildConvex()
 
    g_convexHull = g_func;
 
-   g_convexHull.makeConvex( 2, 5 );
+   printf( "Build convex hull...\n" );
+
+   timespec tp;
+   double startTime, endTime;
+
+   clock_gettime( CLOCK_REALTIME, &tp );
+   startTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
+
+   g_convexHull.makeConvex( 2, 50 );
+
+   clock_gettime( CLOCK_REALTIME, &tp );
+   endTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
+
+   double buildTime = endTime - startTime;
+   printf( "Convex hull build time: %g\n", buildTime );
 
    for( ScalarFunction::const_iterator iter = g_convexHull.begin(); iter != g_convexHull.end(); ++iter )
    {
@@ -251,7 +290,7 @@ void CreateBuffers()
       convexHullVertexData[ i ]( iter->first[ 0 ], iter->first[ 1 ], iter->second );
 
       float colorFactor = ( iter->second - g_convexHullMinVal ) / ( g_convexHullMaxVal - g_convexHullMinVal );
-      convexHullColorData[ i ]( 1.0f - colorFactor, colorFactor, colorFactor * 0.5f );      
+      convexHullColorData[ i ]( colorFactor, 1.0f - colorFactor, 0.0f );      
 
       i++;
    }   
@@ -268,10 +307,12 @@ void CreateBuffers()
 
 int main()
 {
+   buildConvex();
+
    SDL_Init( SDL_INIT_VIDEO );
    const SDL_VideoInfo* info = SDL_GetVideoInfo();	
 
-   int vidFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER;
+   int vidFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_FULLSCREEN;
 
    if( info->hw_available )
       vidFlags |= SDL_HWSURFACE;
@@ -291,7 +332,6 @@ int main()
    }
    fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 
-   buildConvex();
    CreateBuffers();
 
    main_loop_function();
