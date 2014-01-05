@@ -69,27 +69,28 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 		}
 	}
 
-	 for( iterator iter = begin(); iter != end(); ++iter )
-	 {
-	 	for( size_t i = 0; i < numberOfHyperplanes; i++ )
-	 	{
-	 		FP val = 0.0;
-	 		// xi - iter->first
-	 		// Ni - hyperplane normal
-	 		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
-	 		for( size_t j = 0; j < n - 1; j++ )
-	 			val -= iter->first[ j ] * hyperplanes[ i ][ j ];
-	 		val += hyperplanes[ i ][ n ];
-	 		val /= hyperplanes[ i ][ n - 1 ] + EPSILON;
+	for( iterator iter = begin(); iter != end(); ++iter )
+	{
+		FP funcVal = iter->second;
+		for( size_t i = 0; i < numberOfHyperplanes; i++ )
+		{
+			FP val = 0.0;
+			// xi - iter->first
+			// Ni - hyperplane normal
+			// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
+			for( size_t j = 0; j < dimX; j++ )
+			val -= iter->first[ j ] * hyperplanes[ i ][ j ];
+			val += hyperplanes[ i ][ n ];
+			val /= hyperplanes[ i ][ n - 1 ] + EPSILON;
 
-	 		if( i == 0 )
-	 		{
-	 			iter->second = val;
-	 			continue;
-	 		}
+			if( i == 0 )
+			{
+				iter->second = val;
+				continue;
+			}
 
-	 		if( val < iter->second )
-	 			iter->second = val;
-	 	}
-	 }
+			if( val < iter->second && val >= funcVal )
+				iter->second = val;
+		}
+	}
 }
