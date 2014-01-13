@@ -8,6 +8,7 @@ typedef double FP;
 typedef std::vector< FP > FPVector;
 
 #define EPSILON DBL_MIN
+#define PI ( FP )M_PI
 
 class ScalarFunction : public FunctionOfAny< FPVector, FP >
 {

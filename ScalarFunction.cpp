@@ -8,7 +8,7 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 	if( dimX == 0 )
 		return;
 	
-	FP dFi = M_PI / ( numberOfPoints - 1 );
+	FP dFi = PI / ( numberOfPoints - 1 );
 
 	size_t n = dimX + 1; // space dimension
 
@@ -39,7 +39,7 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 		bool shift = true;
 		for( size_t k = 0; ( k < dimX ) && shift; k++ )
 		{
-			if( fabs( fi[ k ] - M_PI ) <= EPSILON )
+			if( fabs( fi[ k ] - PI ) <= EPSILON )
 			{
 				fi[ k ] = 0.0;
 				shift = true;	
@@ -50,8 +50,8 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 				shift = false;
 			}
 
-			if( fi[ k ] - M_PI > EPSILON )
-				fi[ k ] = M_PI;
+			if( fi[ k ] - PI > EPSILON )
+				fi[ k ] = PI;
 		}
 
 		hyperplanes[ i ][ n ] = 0.0; 
@@ -196,7 +196,7 @@ void ScalarFunction::makeConvexMultiThread( const size_t& dimX, const size_t& nu
 	if( dimX == 0 )
 		return;
 	
-	FP dFi = M_PI / ( numberOfPoints - 1 );
+	FP dFi = PI / ( numberOfPoints - 1 );
 
 	size_t n = dimX + 1; // space dimension
 
@@ -217,7 +217,7 @@ void ScalarFunction::makeConvexMultiThread( const size_t& dimX, const size_t& nu
 		fi[ i ] = fi[ i - 1 ];
 		for( size_t k = 0; ( k < dimX ) && shift; k++ )
 		{
-			if( fabs( fi[ i - 1 ][ k ] - M_PI ) <= EPSILON )
+			if( fabs( fi[ i - 1 ][ k ] - PI ) <= EPSILON )
 			{
 				fi[ i ][ k ] = 0.0;
 				shift = true;	
@@ -228,8 +228,8 @@ void ScalarFunction::makeConvexMultiThread( const size_t& dimX, const size_t& nu
 				shift = false;
 			}
 
-			if( fi[ i ][ k ] - M_PI > EPSILON )
-				fi[ i ][ k ] = M_PI;
+			if( fi[ i ][ k ] - PI > EPSILON )
+				fi[ i ][ k ] = PI;
 		}
 	}
 
