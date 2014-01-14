@@ -27,6 +27,11 @@ public:
 
 	const Codomain& at( const Domain& x );
 
+	void clear()
+	{
+		m_table.clear();
+	}
+
 private:
 
 	Container 		m_table;

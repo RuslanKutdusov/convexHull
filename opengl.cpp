@@ -16,8 +16,8 @@
 
 #include "ScalarFunction.hpp"
 
-#define window_width  1366
-#define window_height 768
+#define window_width  640
+#define window_height 480
 
 
 bool key[321];
@@ -230,7 +230,11 @@ void buildConvex()
    clock_gettime( CLOCK_REALTIME, &tp );
    startTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
 
+#ifdef GPU
+   g_convexHull.makeConvexGPU( 2, 50 );
+#else
    g_convexHull.makeConvexMultiThread( 2, 50, 2 );
+#endif
 
    clock_gettime( CLOCK_REALTIME, &tp );
    endTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
@@ -308,11 +312,12 @@ void CreateBuffers()
 int main()
 {
    buildConvex();
-   
+   return 0;
+
    SDL_Init( SDL_INIT_VIDEO );
    const SDL_VideoInfo* info = SDL_GetVideoInfo();	
 
-   int vidFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_FULLSCREEN;
+   int vidFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER;// | SDL_FULLSCREEN;
 
    if( info->hw_available )
       vidFlags |= SDL_HWSURFACE;

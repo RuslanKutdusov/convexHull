@@ -1,26 +1,46 @@
+CC = g++ -g
+NVCC = nvcc -ccbin gcc
 CFLAGS = -O2 -c -Wall -pedantic
+CFLAGS_GPU = -O2 -c -g
 LDFLAGS = -lpthread -lboost_thread -lboost_system
 
+GENCODE_SM10    := -gencode arch=compute_10,code=sm_10
+#GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
+#GENCODE_SM30    := -gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=\"sm_35,compute_35\"
+GENCODE_FLAGS   := $(GENCODE_SM10) $(GENCODE_SM20) $(GENCODE_SM30)
+
+openglGPU: openglcppGPU ScalarFunctionGPU gpu
+	nvcc opengl.o ScalarFunction.o gpu.o -o openglGPU -lSDL -lGLU -lGL -lGLEW $(LDFLAGS)
+
 opengl: openglcpp ScalarFunction
-	clang++ opengl.o ScalarFunction.o -o opengl -lSDL -lGLU -lGL -lGLEW $(LDFLAGS)
+	$(CC) opengl.o ScalarFunction.o -o opengl -lSDL -lGLU -lGL -lGLEW $(LDFLAGS)
 
 openglcpp:
-	clang++ $(CFLAGS) opengl.cpp
+	$(CC) $(CFLAGS) opengl.cpp
+
+openglcppGPU:
+	$(CC) $(CFLAGS) -DGPU opengl.cpp
 
 test: test_cpp Image convexHull ScalarFunction
-	clang++ test.o Image.o convexHull.o ScalarFunction.o -o test -lpng $(LDFLAGS)
+	$(CC) test.o Image.o convexHull.o ScalarFunction.o -o test -lpng $(LDFLAGS)
 
 test_cpp : test.cpp
-	clang++ $(CFLAGS) test.cpp 
+	$(CC) $(CFLAGS) test.cpp 
 
 Image: Image.cpp
-	clang++ $(CFLAGS) Image.cpp
+	$(CC) $(CFLAGS) Image.cpp
 
 convexHull: convexHull.cpp
-	clang++ $(CFLAGS) convexHull.cpp
+	$(CC) $(CFLAGS) convexHull.cpp
 
 ScalarFunction: ScalarFunction.cpp
-	clang++ $(CFLAGS) ScalarFunction.cpp
+	$(CC) $(CFLAGS) ScalarFunction.cpp
+
+gpu: 
+	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) gpu.cu
+
+ScalarFunctionGPU: ScalarFunction.cpp
+	$(CC) $(CFLAGS) -DGPU ScalarFunction.cpp
 
 clean:
 	rm *.o
