@@ -14,7 +14,7 @@ texture< FP, 1, cudaReadModeElementType > g_texturePoints;
 texture< FP, 1, cudaReadModeElementType > g_textureVals;
 texture< FP, 1, cudaReadModeElementType > g_textureHyperplanes;
 
-__global__ void kernel1( FP* hyperplanes, FP* normals, const size_t n, size_t numberOfHyperplanes, size_t numberOfPoints )
+__global__ void kernel1( FP* hyperplanes, const size_t n, size_t numberOfHyperplanes, size_t numberOfPoints )
 {
 	size_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -24,10 +24,8 @@ __global__ void kernel1( FP* hyperplanes, FP* normals, const size_t n, size_t nu
 	size_t dimX = n - 1;
 	// now its offset to hyperplane in 'hyperplanes' array, to remove redundant multiplication at every string
 	size_t offsetToHyperplane = hyperplaneIndex * ( n + 1 );
-	size_t offsetToNormal = hyperplaneIndex * n;
 
-	//hyperplanes[ i ][ n ] = 0.0; 
-	hyperplanes[ offsetToHyperplane + n ] = 0.0; 
+	FP resultDistance = 0.0;
 	
 	for( size_t k = 0; k < numberOfPoints; k++ )
 	{
@@ -35,19 +33,14 @@ __global__ void kernel1( FP* hyperplanes, FP* normals, const size_t n, size_t nu
 
 		// dot product of point and normal is distance
 		for( size_t j = 0; j < dimX; j++ )
-			//d += points[ k * dimX + j ] * normals[ offsetToNormal + j ];
-			d += tex1Dfetch( g_texturePoints, k * dimX + j ) * normals[ offsetToNormal + j ];
-		//d += vals[ k ] * normals[ offsetToNormal + n - 1 ];
-		d += tex1Dfetch( g_textureVals, k ) * normals[ offsetToNormal + n - 1 ];
+			d += tex1Dfetch( g_texturePoints, k * dimX + j ) * hyperplanes[ offsetToHyperplane + j ]; 
+		d += tex1Dfetch( g_textureVals, k ) * hyperplanes[ offsetToHyperplane + n - 1 ]; 
 
-		if( d > hyperplanes[ offsetToHyperplane + n ] )
-		{
-			for( size_t j = 0; j < n; j++ )
-				hyperplanes[ offsetToHyperplane + j ] = normals[ offsetToNormal + j ];
-
-			hyperplanes[ offsetToHyperplane + n ] = d;
-		}
+		if( d > resultDistance )
+			resultDistance = d;
 	}
+
+	hyperplanes[ offsetToHyperplane + n ] = resultDistance;
 }
 
 
@@ -114,9 +107,6 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 	size_t valsSize = func.size();
 	FP* vals = new FP[ valsSize ];
 
-	size_t normalsSize = numberOfHyperplanes * n;
-	FP* normals = new FP[ normalsSize ];
-
 	{
 		size_t i = 0;
 		for( ScalarFunction::iterator iter = func.begin(); iter != func.end(); ++iter, i++ )
@@ -134,12 +124,14 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 	{
 		for( size_t j = 0; j < n; j++ )
 		{
-			normals[ i * n + j ] = 1.0;
+			FP* normal = &hyperplanes[ i * ( n + 1 ) ];
+
+			normal[ j ] = 1.0;
 			for( size_t k = 0; k < j; k++ )
-				normals[ i * n + j ] *= sin( fi[ k ] );
+				normal[ j ] *= sin( fi[ k ] );
 
 			if( j != n - 1 )
-				normals[ i * n + j ] *= cos( fi[ j ] );
+				normal[ j ] *= cos( fi[ j ] );
 		}
 
 		// not good enough
@@ -164,11 +156,8 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 
 	FP* d_hyperplanes;
 	CUDA_CHECK_RETURN( cudaMalloc( &d_hyperplanes, hyperplanesSize * sizeof( FP ) ) );
+	CUDA_CHECK_RETURN( cudaMemcpy( d_hyperplanes, hyperplanes, hyperplanesSize * sizeof( FP ), cudaMemcpyHostToDevice ) );
 	CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_textureHyperplanes, d_hyperplanes, hyperplanesSize * sizeof( FP ) ) );
-
-	FP* d_normals;
-	CUDA_CHECK_RETURN( cudaMalloc( &d_normals, normalsSize * sizeof( FP ) ) );
-	CUDA_CHECK_RETURN( cudaMemcpy( d_normals, normals, normalsSize * sizeof( FP ), cudaMemcpyHostToDevice ) );
 
 	FP* d_points;
 	CUDA_CHECK_RETURN( cudaMalloc( &d_points, pointsSize * sizeof( FP ) ) );
@@ -180,13 +169,13 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 	CUDA_CHECK_RETURN( cudaMemcpy( d_vals, vals, valsSize * sizeof( FP ), cudaMemcpyHostToDevice ) );
 	CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_textureVals, d_vals, valsSize * sizeof( FP ) ) );
 
-	const size_t warpSize = 32;
+	const size_t warpSize = 512;
 
 	// run first kernel
 	printf( "run kernel1 %u\n", numberOfHyperplanes );
 	size_t gridSize = numberOfHyperplanes / warpSize + 1; 
 	size_t blockSize = warpSize;
-	kernel1<<< gridSize, blockSize >>>( d_hyperplanes, d_normals, n, numberOfHyperplanes, func.size() );
+	kernel1<<< gridSize, blockSize >>>( d_hyperplanes, n, numberOfHyperplanes, func.size() );
 
 	CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
@@ -222,7 +211,6 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 	fclose( file );
 
 	CUDA_CHECK_RETURN( cudaFree( ( void* )d_hyperplanes ) );
-	CUDA_CHECK_RETURN( cudaFree( ( void* )d_normals ) );
 	CUDA_CHECK_RETURN( cudaFree( ( void* )d_points ) );
 	CUDA_CHECK_RETURN( cudaFree( ( void* )d_vals ) );
 
