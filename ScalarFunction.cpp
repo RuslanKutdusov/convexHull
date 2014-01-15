@@ -14,9 +14,7 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 
 	size_t numberOfHyperplanes = pow( numberOfPoints, n - 1 );
 
-	FPVector normal( n );
-
-	// first x0.. x(n - 2) elements are independent vars. in 2D it will be x
+	// first x0.. x(n - 2) elements are independent vars. in 2D it will be x, contains normal
 	// x(n - 1) element dependent var. . in 2D it will be y
 	// xn - constant, represents distance between O and hyperplane
 	std::vector< FPVector > hyperplanes( numberOfHyperplanes, FPVector( n + 1 ) );
@@ -27,12 +25,12 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 	{
 		for( size_t j = 0; j < n; j++ )
 		{
-			normal[ j ] = 1.0;
+			hyperplanes[ i ][ j ] = 1.0;
 			for( size_t k = 0; k < j; k++ )
-				normal[ j ] *= sin( fi[ k ] );
+				hyperplanes[ i ][ j ] *= sin( fi[ k ] );
 
 			if( j != n - 1 )
-				normal[ j ] *= cos( fi[ j ] );
+				hyperplanes[ i ][ j ] *= cos( fi[ j ] );
 		}
 
 		// not good enough
@@ -62,16 +60,11 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 
 			// dot product of point and normal is distance
 			for( size_t j = 0; j < dimX; j++ )
-				d += iter->first[ j ] * normal[ j ];
-			d += iter->second * normal[ n - 1 ];
+				d += iter->first[ j ] * hyperplanes[ i ][ j ];
+			d += iter->second * hyperplanes[ i ][ n - 1 ];
 
 			if( d > hyperplanes[ i ][ n ] )
-			{
-				for( size_t j = 0; j < n; j++ )
-					hyperplanes[ i ][ j ] = normal[ j ];
-
 				hyperplanes[ i ][ n ] = d;
-			}
 		}
 	}
 
@@ -85,7 +78,7 @@ void ScalarFunction::makeConvex( const size_t& dimX, const size_t& numberOfPoint
 			// Ni - hyperplane normal
 			// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
 			for( size_t j = 0; j < dimX; j++ )
-			val -= iter->first[ j ] * hyperplanes[ i ][ j ];
+				val -= iter->first[ j ] * hyperplanes[ i ][ j ];
 			val += hyperplanes[ i ][ n ];
 			val /= hyperplanes[ i ][ n - 1 ] + EPSILON;
 
@@ -108,18 +101,17 @@ void thread1( std::vector< FPVector >& hyperplanes, std::vector< FPVector >& fi,
 			ScalarFunction* func )
 {
 	size_t dimX = n - 1;
-	FPVector normal( n );
 
 	for( size_t i = startIndex; i < startIndex + taskSize; i++ )
 	{
 		for( size_t j = 0; j < n; j++ )
 		{
-			normal[ j ] = 1.0;
+			hyperplanes[ i ][ j ] = 1.0;
 			for( size_t k = 0; k < j; k++ )
-				normal[ j ] *= sin( fi[ i ][ k ] );
+				hyperplanes[ i ][ j ] *= sin( fi[ i ][ k ] );
 
 			if( j != n - 1 )
-				normal[ j ] *= cos( fi[ i ][ j ] );
+				hyperplanes[ i ][ j ] *= cos( fi[ i ][ j ] );
 		}
 
 		hyperplanes[ i ][ n ] = 0.0; 
@@ -130,16 +122,11 @@ void thread1( std::vector< FPVector >& hyperplanes, std::vector< FPVector >& fi,
 
 			// dot product of point and normal is distance
 			for( size_t j = 0; j < dimX; j++ )
-				d += iter->first[ j ] * normal[ j ];
-			d += iter->second * normal[ n - 1 ];
+				d += iter->first[ j ] * hyperplanes[ i ][ j ];
+			d += iter->second * hyperplanes[ i ][ n - 1 ];
 
 			if( d > hyperplanes[ i ][ n ] )
-			{
-				for( size_t j = 0; j < n; j++ )
-					hyperplanes[ i ][ j ] = normal[ j ];
-
 				hyperplanes[ i ][ n ] = d;
-			}
 		}
 	}
 }
