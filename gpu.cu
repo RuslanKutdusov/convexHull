@@ -10,6 +10,9 @@
 		exit( 1 );															\
 	} }
 
+namespace gpu
+{
+
 texture< FP, 1, cudaReadModeElementType > g_texturePoints;
 texture< FP, 1, cudaReadModeElementType > g_textureVals;
 texture< FP, 1, cudaReadModeElementType > g_textureHyperplanes;
@@ -44,47 +47,73 @@ __global__ void kernel1( FP* hyperplanes, const size_t n, size_t numberOfHyperpl
 }
 
 
-//
-__global__ void kernel2( FP* vals, size_t n, size_t numberOfHyperplanes, size_t numberOfPoints, size_t taskSize )
+// sending dimX as argument is to reduce register usage
+__global__ void kernel2( FP* vals, size_t n, size_t dimX, size_t numberOfHyperplanes, size_t numberOfPoints )
 {
-	size_t pointIndex = blockIdx.x * blockDim.x + threadIdx.x;
-	if( pointIndex >= numberOfPoints )
+	size_t k = blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x;
+	if( k >= numberOfPoints )
 		return;
 
-	size_t dimX = n - 1;	
+	FP funcVal = vals[ k ];
+	FP convexVal = funcVal;
 
-	for( size_t k = pointIndex; k < pointIndex + taskSize; k++ )
+	for( size_t i = 0; i < numberOfHyperplanes; i++ )
 	{
-		FP funcVal = vals[ k ];
-		FP convexVal = funcVal;
+		FP val = 0.0;
+		size_t offsetToHyperplane = i * ( n + 1 );
+		// xi - iter->first
+		// Ni - hyperplane normal
+		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
+		for( size_t j = 0; j < dimX; j++ )
+			val -= tex1Dfetch( g_texturePoints, k * dimX + j ) * tex1Dfetch( g_textureHyperplanes, offsetToHyperplane + j );
+		val += tex1Dfetch( g_textureHyperplanes, offsetToHyperplane + n );
+		val /= tex1Dfetch( g_textureHyperplanes, offsetToHyperplane + n - 1 ) + EPSILON;
 
-		for( size_t i = 0; i < numberOfHyperplanes; i++ )
+		if( i == 0 )
 		{
-			FP val = 0.0;
-			size_t offsetToHyperplane = i * ( n + 1 );
-			// xi - iter->first
-			// Ni - hyperplane normal
-			// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
-			for( size_t j = 0; j < dimX; j++ )
-				val -= tex1Dfetch( g_texturePoints, k * dimX + j ) * tex1Dfetch( g_textureHyperplanes, offsetToHyperplane + j );
-			val += tex1Dfetch( g_textureHyperplanes, offsetToHyperplane + n );
-			val /= tex1Dfetch( g_textureHyperplanes, offsetToHyperplane + n - 1 ) + EPSILON;
-
-			if( i == 0 )
-			{
-				convexVal = val;
-				continue;
-			}
-
-			if( val < convexVal && val >= funcVal )
-				convexVal = val;
+			convexVal = val;
+			continue;
 		}
 
-		vals[ k ] = convexVal;
+		if( val < convexVal && val >= funcVal )
+			convexVal = val;
+	}
+
+	vals[ k ] = convexVal;
+}
+
+
+//
+void getGridAndBlockDim( int n, dim3& gridDim, dim3& blockDim )
+{
+	// gpu hardware limits
+	const int warpSize = 32;
+	//const int smNumber = 2;
+	//const int blocksPerSM = 8;
+    //const int maxGridSize = smNumber * blocksPerSM;
+    const int maxGridDimX = 65535;
+
+    int warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
+    int warpPerBlock = max( 1, min( 4, warpCount ) );
+
+    int threadCount = warpSize * warpPerBlock;
+    int blockCount = ( warpCount / warpPerBlock ) + ( ( ( warpCount % warpPerBlock ) == 0 ) ? 0 : 1 );
+
+    blockDim = dim3( threadCount, 1, 1 );
+
+    gridDim = dim3( blockCount, 1, 1 );
+
+    if( blockCount > maxGridDimX )
+	{
+		gridDim.x = gridDim.y = sqrt( blockCount );
+		if( gridDim.x * gridDim.x < blockCount )
+			gridDim.x += 1;
 	}
 }
 
-__host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const size_t& numberOfPoints )
+
+//
+__host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t& numberOfPoints )
 {
 	if( dimX == 0 )
 		return;
@@ -169,46 +198,34 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 	CUDA_CHECK_RETURN( cudaMemcpy( d_vals, vals, valsSize * sizeof( FP ), cudaMemcpyHostToDevice ) );
 	CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_textureVals, d_vals, valsSize * sizeof( FP ) ) );
 
-	const size_t warpSize = 512;
+
+	dim3 gridDim, blockDim;
 
 	// run first kernel
-	printf( "run kernel1 %u\n", numberOfHyperplanes );
-	size_t gridSize = numberOfHyperplanes / warpSize + 1; 
-	size_t blockSize = warpSize;
-	kernel1<<< gridSize, blockSize >>>( d_hyperplanes, n, numberOfHyperplanes, func.size() );
+	getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim );
+	kernel1<<< gridDim, blockDim >>>( d_hyperplanes, n, numberOfHyperplanes, func.size() );
 
 	CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
-	printf( "fin kernel1\n");
-
 
 	// run second kernel
-	printf( "run kernel2 %u\n", func.size() );
-	gridSize = func.size() / warpSize + 1; 
-	blockSize = warpSize;
-	kernel2<<< gridSize, blockSize >>>( d_vals, n, numberOfHyperplanes, func.size(), 1 );
+	getGridAndBlockDim( func.size(), gridDim, blockDim );
+	kernel2<<< gridDim, blockDim >>>( d_vals, n, dimX, numberOfHyperplanes, func.size() );
 
 	CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
-	printf( "fin kernel2\n");
 
 	CUDA_CHECK_RETURN( cudaMemcpy( vals, d_vals, valsSize * sizeof( FP ), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
 
+	// ???
+	//func.clear();
+
 	for( size_t k = 0; k < func.size(); k++ )
 	{
-		FPVector x( &(points[ k * dimX ]), &(points[ ( k + 1 ) * dimX ]) );
+		FPVector x( &points[ k * dimX ], &points[ ( k + 1 ) * dimX ] );
 		func.define( x ) = vals[ k ];
 	}
-
-	FILE* file = fopen( "data4", "w" );
-
-	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
-	{
-		fprintf( file, "%g %g %g\n", iter->first[ 0 ], iter->first[ 1 ], iter->second );	
-	}
-
-	fclose( file );
 
 	CUDA_CHECK_RETURN( cudaFree( ( void* )d_hyperplanes ) );
 	CUDA_CHECK_RETURN( cudaFree( ( void* )d_points ) );
@@ -216,4 +233,6 @@ __host__ void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const si
 
 	CUDA_CHECK_RETURN( cudaDeviceReset() );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
+}
+
 }

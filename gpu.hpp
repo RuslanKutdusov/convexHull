@@ -1,4 +1,9 @@
 #pragma once
 #include "ScalarFunction.hpp"
 
-void makeConvexGPU_( ScalarFunction& func, const size_t& dimX, const size_t& numberOfPoints );
+namespace gpu
+{
+
+void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t& numberOfPoints );
+
+}

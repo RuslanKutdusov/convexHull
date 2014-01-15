@@ -312,7 +312,6 @@ void CreateBuffers()
 int main()
 {
    buildConvex();
-   return 0;
 
    SDL_Init( SDL_INIT_VIDEO );
    const SDL_VideoInfo* info = SDL_GetVideoInfo();	

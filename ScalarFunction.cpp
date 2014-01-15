@@ -278,7 +278,7 @@ void ScalarFunction::makeConvexMultiThread( const size_t& dimX, const size_t& nu
 
 void ScalarFunction::makeConvexGPU( const size_t& dimX, const size_t& numberOfPoints )
 {
-	makeConvexGPU_( *this, dimX, numberOfPoints );
+	gpu::makeConvex( *this, dimX, numberOfPoints );
 }
 
 #endif
