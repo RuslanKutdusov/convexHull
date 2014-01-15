@@ -13,11 +13,15 @@ typedef std::vector< FP > FPVector;
 class ScalarFunction : public FunctionOfAny< FPVector, FP >
 {
 public:
+	//
 	void makeConvex( const size_t& dimX, const size_t& numberOfPoints );
+	//
 	void makeConvexMultiThread( const size_t& dimX, const size_t& numberOfPoints, const size_t& jobs );
+
 #ifdef GPU
 	void makeConvexGPU( const size_t& dimX, const size_t& numberOfPoints );
 #endif
-private:
 
+private:
+	
 };
