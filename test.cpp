@@ -1,103 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "Image.hpp"
-#include "FunctionOfAny.hpp"
-#include "convexHull.hpp"
-
 #include "ScalarFunction.hpp"
-
-void testImage()
-{
-	float segmentXLength = 2.0f * M_PI + M_PI;
-	float segmentYLength = 4.0f;
-
-	Image image( 512, 512 );
-	image.clearByWhite();
-
-	float stepX = segmentXLength / image.getWidth();
-	float stepY = segmentYLength / image.getHeight();
-
-	float x = -M_PI;
-	for( size_t xp = 0; xp < image.getWidth(); xp++ )
-	{
-		float y = segmentYLength / 2.0f - sin( x );
-
-		size_t yp = y / stepY;
-
-		image.writePixel( xp, yp );
-
-		x += stepX;
-	}
-
-	save_png( "out.png", image );
-}
-
-void testNormal()
-{
-	float segmentXLength = 4.0f;
-	float segmentYLength = 4.0f;
-
-	Image image( 512, 512 );
-	image.clearByWhite();
-
-	float stepX = segmentXLength / image.getWidth();
-	float stepY = segmentYLength / image.getHeight();
-
-	float dFi = M_PI / 10.0f;
-
-	for( float fi = 0.0f; fi < M_PI; fi += dFi )
-	{
-		float x = cos( fi )  + segmentXLength / 2.0f;
-		float y = segmentYLength / 2.0f - sin( fi );
-
-		image.writePixel( x / stepX, y / stepY );
-	}
-
-	save_png( "out.png", image );
-}
-
-void test_makeConvexHull()
-{
-	float segmentXLength = 2.0 * M_PI;
-	float segmentYLength = 20.0f;
-
-	Image image( 512, 512 );
-	image.clearByWhite();
-
-	float stepX = segmentXLength / image.getWidth();
-	float stepY = segmentYLength / image.getHeight();
-
-	ScalarFunction function;
-
-	FPVector x( 1 );
-	x[ 0 ] = -segmentXLength / 2.0;
-
-	for( size_t xp = 0; xp < image.getWidth(); xp++ )
-	{
-		FP y = 5.0 * x[ 0 ] * sin( x[ 0 ] );
-
-		function.define( x ) = y;
-
-		size_t yp = ( segmentYLength / 2.0 - y ) / stepY;
-
-		image.writePixel( xp, yp );
-
-		x[ 0 ] += stepX;
-	}
-
-	function.makeConvex( 1, 50 );
-
-	for( ScalarFunction::const_iterator iter = function.begin(); iter != function.end(); ++iter )
-	{
-		FP x = iter->first[ 0 ] + segmentXLength / 2.0;
-		FP y = segmentYLength / 2.0 - iter->second;
-
-		image.writePixel( x / stepX, y / stepY, 0xFFFF0000u );
-	}
-
-	save_png( "out.png", image );	
-}
 
 void test1_ScalarFunction()
 {
@@ -118,7 +22,7 @@ void test1_ScalarFunction()
 
 		x[ 0 ] += stepX;
 
-		fprintf( file, "%lg %lg\n", x[ 0 ], y );
+		fprintf( file, "%g %g\n", x[ 0 ], y );
 	}
 
 	fclose( file );
@@ -129,7 +33,7 @@ void test1_ScalarFunction()
 
 	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
 	{
-		fprintf( file, "%lg %lg\n", iter->first[ 0 ], iter->second );	
+		fprintf( file, "%g %g\n", iter->first[ 0 ], iter->second );	
 	}
 
 	fclose( file );
@@ -175,7 +79,6 @@ void test2_ScalarFunction()
 
 int main()
 {
-	test_makeConvexHull();
 	test1_ScalarFunction();
 	test2_ScalarFunction();
 

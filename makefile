@@ -21,17 +21,11 @@ openglcpp:
 openglcppGPU:
 	$(CC) $(CFLAGS) -DGPU opengl.cpp
 
-test: test_cpp Image convexHull ScalarFunction
-	$(CC) test.o Image.o convexHull.o ScalarFunction.o -o test -lpng $(LDFLAGS)
+test: test_cpp  ScalarFunction
+	$(CC) test.o ScalarFunction.o -o test -lpng $(LDFLAGS)
 
 test_cpp : test.cpp
 	$(CC) $(CFLAGS) test.cpp 
-
-Image: Image.cpp
-	$(CC) $(CFLAGS) Image.cpp
-
-convexHull: convexHull.cpp
-	$(CC) $(CFLAGS) convexHull.cpp
 
 ScalarFunction: ScalarFunction.cpp
 	$(CC) $(CFLAGS) ScalarFunction.cpp
