@@ -1,0 +1,13 @@
+#!/usr/bin/gnuplot -persist
+
+set terminal png size 1366, 768 linewidth 2
+set output "test2GPU.png"
+
+set xrange [-5.0:5.0]
+set yrange [-5.0:5.0]
+set xlabel "x"
+set ylabel "y"
+set zlabel "z"
+
+splot "points_test2GPU_func", \
+         "points_test2GPU_ch"
