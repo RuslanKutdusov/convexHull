@@ -218,6 +218,7 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 	CUDA_CHECK_RETURN( cudaMemcpy( vals, d_vals, valsSize * sizeof( FP ), cudaMemcpyDeviceToHost ) );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
 
+
 	// ???
 	//func.clear();
 
@@ -233,6 +234,10 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 
 	CUDA_CHECK_RETURN( cudaDeviceReset() );
 	CUDA_CHECK_RETURN( cudaGetLastError() );
+
+	delete[] hyperplanes;
+	delete[] points;
+	delete[] vals;
 }
 
 }
