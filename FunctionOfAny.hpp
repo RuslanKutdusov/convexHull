@@ -1,5 +1,11 @@
 #pragma once
 #include <boost/unordered_map.hpp>
+#include <boost/foreach.hpp>
+#include <boost/serialization/nvp.hpp>
+#include <boost/serialization/serialization.hpp>
+#include <boost/serialization/utility.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/version.hpp>
 
 template< class Domain, class Codomain >
 class FunctionOfAny
@@ -36,6 +42,15 @@ private:
 
 	Container 		m_table;
 
+	//
+	friend class boost::serialization::access;
+
+	//
+	template<class Archive>
+	void load(Archive& ar, const unsigned int version);
+	template<class Archive>
+	void save(Archive& ar, const unsigned int version) const;
+	
 };
 
 
@@ -124,4 +139,34 @@ template< class Domain, class Codomain >
 const Codomain& FunctionOfAny< Domain, Codomain >::at( const Domain& x )
 {
 	return m_table[ x ];
+}
+
+
+//
+template<class Domain, class Codomain>
+template<class Archive>
+void FunctionOfAny<Domain, Codomain>::save( Archive& ar, const unsigned int /* version */) const
+{
+    size_t size = m_table.size();
+    ar << boost::serialization::make_nvp( "size", size );
+    typedef typename Container::value_type value_type;
+    BOOST_FOREACH( value_type p, m_table )
+        ar << p;
+}
+
+
+//
+template<class Domain, class Codomain>
+template<class Archive>
+void FunctionOfAny<Domain, Codomain>::load( Archive& ar, const unsigned int /* version */ )
+{
+	size_t size;
+	typename Container::value_type p;
+	ar >> boost::serialization::make_nvp( "size", size );
+	m_table = Container( size );
+	for( size_t i = 0; i < size; ++i ) 
+	{
+		ar >> p;
+		m_table.insert(p);
+	}
 }
