@@ -1,7 +1,8 @@
 *.o
 *.png
+*.dat
 test
-opengl
-openglGPU
+vis
+time_measurements
 points*
 

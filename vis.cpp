@@ -14,14 +14,19 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <fstream>
+
 #include "ScalarFunction.hpp"
 
-#define window_width  640
-#define window_height 480
+#define WINDOW_WIDTH  640
+#define WINDOW_HEIGHT 480
 
 
 bool key[321];
 
+//
 ScalarFunction g_func;
 ScalarFunction g_convexHull;
 FP g_funcMinVal = FLT_MAX;
@@ -29,10 +34,12 @@ FP g_funcMaxVal = -FLT_MAX;
 FP g_convexHullMinVal = FLT_MAX;
 FP g_convexHullMaxVal = -FLT_MAX;
 
+//
 size_t g_vertexNumber;
 GLuint g_funcVBO;
 GLuint g_convexHullVBO;
 
+//
 struct Vertex
 {
    float x;
@@ -53,6 +60,7 @@ struct Vertex
 };
 
 
+//
 bool events()
 {
    SDL_Event event;
@@ -69,6 +77,7 @@ bool events()
 }
 
 
+//
 void main_loop_function()
 {
    float angleY = 0.0f;
@@ -182,6 +191,7 @@ void main_loop_function()
 }
 
 
+//
 void GL_Setup(int width, int height)
 {
    glViewport( 0, 0, width, height );
@@ -195,52 +205,29 @@ void GL_Setup(int width, int height)
 }
 
 
-void buildConvex()
+//
+void readFunc( const char* filename, ScalarFunction& func )
 {
-   printf( "Build function...\n" );
+   std::ifstream ifs( filename );
+   boost::archive::text_iarchive ia( ifs );
+   ia >> func;
+}
 
-   FP step = 0.01f;
 
-   for( FP x = -5.0; x <= 5.0; x += step ) 
+//
+void readFuncs( const char* func, const char* hull )
+{
+   readFunc( func, g_func );
+   readFunc( hull, g_convexHull );
+
+   for( ScalarFunction::const_iterator iter = g_func.begin(); iter != g_func.end(); ++iter )
    {
-      for ( FP y = -5.0; y <= 5.0; y += step ) 
-      {
-         FPVector v( 2 );
-         v[ 0 ] = x;
-         v[ 1 ] = y;
-
-         if (x * x + y * y >= 25) continue;
-         FP z = sqrt( x * x + y * y ) * sin( sqrt( x * x + y * y ) );
-         g_func.define( v ) = z;
-
-         if( z > g_funcMaxVal )
-            g_funcMaxVal = z;
-         if( z < g_funcMinVal )
-            g_funcMinVal = z;
-      }
-   }    
-
-   g_convexHull = g_func;
-
-   printf( "Build convex hull...\n" );
-
-   timespec tp;
-   double startTime, endTime;
-
-   clock_gettime( CLOCK_REALTIME, &tp );
-   startTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
-
-#ifdef GPU
-   g_convexHull.makeConvexGPU( 2, 50 );
-#else
-   g_convexHull.makeConvexMultiThread( 2, 50, 2 );
-#endif
-
-   clock_gettime( CLOCK_REALTIME, &tp );
-   endTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
-
-   double buildTime = endTime - startTime;
-   printf( "Convex hull build time: %g\n", buildTime );
+      FP z = iter->second;
+      if( z > g_funcMaxVal )
+         g_funcMaxVal = z;
+      if( z < g_funcMinVal )
+         g_funcMinVal = z;
+   }
 
    for( ScalarFunction::const_iterator iter = g_convexHull.begin(); iter != g_convexHull.end(); ++iter )
    {
@@ -253,6 +240,7 @@ void buildConvex()
 }
 
 
+//
 void GenBuffer( GLuint* vbo, size_t size, Vertex* vertex, Vertex* color )
 {
    glGenBuffers( 1, vbo );
@@ -268,6 +256,7 @@ void GenBuffer( GLuint* vbo, size_t size, Vertex* vertex, Vertex* color )
 }
 
 
+//
 void CreateBuffers()
 {
    g_vertexNumber = g_func.size();
@@ -309,14 +298,37 @@ void CreateBuffers()
 }
 
 
-int main()
+//
+int main( int argc, char* argv[] )
 {
-   buildConvex();
+   int windowWidth = WINDOW_WIDTH;
+   int windowHeight = WINDOW_HEIGHT;
+   int fullscreen = 0;
+
+   if( argc < 3 )
+   {
+      printf( "./vis <serialized table func filename> <serialized table convex hull filename> [ <windowWidth> <windowHeight> ]\n" );
+      printf( "./vis <serialized table func filename> <serialized table convex hull filename> [ <windowWidth> <windowHeight> <fullscreen = 1, 0 > ]\n" );
+      return -1;
+   }
+
+   readFuncs( argv[ 1 ], argv[ 2 ] );
+
+   if( argc >= 5 )
+   {
+      sscanf( argv[ 3 ], "%d", &windowWidth );
+      sscanf( argv[ 4 ], "%d", &windowHeight );
+   }
+   if( argc >= 6 )
+      sscanf( argv[ 5 ], "%d", &fullscreen );
+
 
    SDL_Init( SDL_INIT_VIDEO );
    const SDL_VideoInfo* info = SDL_GetVideoInfo();	
 
-   int vidFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER;// | SDL_FULLSCREEN;
+   int vidFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER;
+   if( fullscreen )
+      vidFlags |= SDL_FULLSCREEN;
 
    if( info->hw_available )
       vidFlags |= SDL_HWSURFACE;
@@ -324,16 +336,13 @@ int main()
       vidFlags |= SDL_SWSURFACE;
 
    int bpp = info->vfmt->BitsPerPixel;
-   SDL_SetVideoMode( window_width, window_height, bpp, vidFlags );
+   SDL_SetVideoMode( windowWidth, windowHeight, bpp, vidFlags );
 
-   GL_Setup( window_width, window_height );
+   GL_Setup( windowWidth, windowHeight );
 
    GLenum err = glewInit();
    if (GLEW_OK != err)
-   {
-     /* Problem: glewInit failed, something is seriously wrong. */
-     fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
-   }
+      fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
    fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 
    CreateBuffers();
