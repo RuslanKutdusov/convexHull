@@ -6,6 +6,7 @@
 #include <boost/serialization/utility.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/version.hpp>
+#include <boost/serialization/split_member.hpp>
 
 template< class Domain, class Codomain >
 class FunctionOfAny
@@ -50,7 +51,8 @@ private:
 	void load(Archive& ar, const unsigned int version);
 	template<class Archive>
 	void save(Archive& ar, const unsigned int version) const;
-	
+
+	BOOST_SERIALIZATION_SPLIT_MEMBER()	
 };
 
 
