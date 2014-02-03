@@ -86,29 +86,32 @@ __global__ void kernel2( FP* vals, size_t n, size_t dimX, size_t numberOfHyperpl
 //
 void getGridAndBlockDim( int n, dim3& gridDim, dim3& blockDim )
 {
-	// gpu hardware limits
+	// gpu hardware limits for compute caps 1.2 and 2.0
 	const int warpSize = 32;
-	//const int smNumber = 2;
-	//const int blocksPerSM = 8;
-    //const int maxGridSize = smNumber * blocksPerSM;
-    const int maxGridDimX = 65535;
+	const int blocksPerSM = 8;
+
+	cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties( &deviceProp, 0 );
 
     int warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
-    int warpPerBlock = max( 1, min( 4, warpCount ) );
 
-    int threadCount = warpSize * warpPerBlock;
-    int blockCount = ( warpCount / warpPerBlock ) + ( ( ( warpCount % warpPerBlock ) == 0 ) ? 0 : 1 );
+    int threadsPerBlock = deviceProp.maxThreadsPerMultiProcessor / blocksPerSM;
+    int warpsPerBlock = threadsPerBlock / warpSize;
 
-    blockDim = dim3( threadCount, 1, 1 );
+    int blockCount = ( warpCount / warpsPerBlock ) + ( ( ( warpCount % warpsPerBlock ) == 0 ) ? 0 : 1 );
 
-    gridDim = dim3( blockCount, 1, 1 );
+    blockDim = dim3( threadsPerBlock, 1, 1 );
 
-    if( blockCount > maxGridDimX )
+	gridDim = dim3( blockCount, 1, 1 );
+
+	if( blockCount > deviceProp.maxGridSize[ 0 ] )
 	{
 		gridDim.x = gridDim.y = sqrt( blockCount );
 		if( gridDim.x * gridDim.x < blockCount )
 			gridDim.x += 1;
 	}
+
+	printf( "Task size: %d, warp number: %d, threads per block: %d, warps per block: %d, grid: (%d, %d, 1)\n", n, warpCount, threadsPerBlock, warpsPerBlock, gridDim.x, gridDim.y );
 }
 
 
