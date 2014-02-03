@@ -5,9 +5,8 @@ CFLAGS_GPU = -O2 -c -g --ptxas-options=-v
 LDFLAGS = -lpthread -lboost_thread -lboost_system -lboost_serialization
 
 GENCODE_SM10    := -gencode arch=compute_12,code=sm_12
-#GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
-#GENCODE_SM30    := -gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=\"sm_35,compute_35\"
-GENCODE_FLAGS   := $(GENCODE_SM10) $(GENCODE_SM20) $(GENCODE_SM30)
+GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
+GENCODE_FLAGS   := $(GENCODE_SM10) $(GENCODE_SM20)
 
 vis: ScalarFunction
 	$(CC) $(CFLAGS) vis.cpp
