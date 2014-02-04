@@ -1,8 +1,8 @@
 CC = g++ -g
-NVCC = nvcc -ccbin gcc
-CFLAGS = -O2 -c -Wall -pedantic
-CFLAGS_GPU = -O2 -c -g --ptxas-options=-v
-LDFLAGS = -lpthread -lboost_thread -lboost_system -lboost_serialization
+NVCC = nvcc
+CFLAGS = $(BOOST_HEADERS) -O2 -c -Wall -pedantic
+CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c -g --ptxas-options=-v
+LDFLAGS = $(BOOST_LD_PATH) -lpthread -lboost_thread -lboost_system -lboost_serialization
 
 GENCODE_SM10    := -gencode arch=compute_12,code=sm_12
 GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
@@ -14,11 +14,11 @@ vis: ScalarFunction
 
 test: ScalarFunctionGPU gpu
 	$(CC) $(CFLAGS) -DGPU test.cpp 
-	nvcc test.o ScalarFunction.o gpu.o -o test -lpng $(LDFLAGS)
+	$(NVCC) test.o ScalarFunction.o gpu.o -o test -lpng $(LDFLAGS)
 
 time_measurements: ScalarFunctionGPU gpu
 	$(CC) $(CFLAGS) -DGPU time_measurements.cpp 
-	nvcc time_measurements.o ScalarFunction.o gpu.o -o time_measurements $(LDFLAGS)
+	$(NVCC) time_measurements.o ScalarFunction.o gpu.o -o time_measurements $(LDFLAGS)
 
 ScalarFunction: ScalarFunction.cpp
 	$(CC) $(CFLAGS) ScalarFunction.cpp
