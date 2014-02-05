@@ -42,17 +42,18 @@ int main( int argc, char* argv[] )
 {
 	float step;
 	int normalNumber;
-	int threadNumber = 2;
+	int threadNumber = 0;
 
-	if( argc < 4 )
+	if( argc < 3 )
 	{
-		printf( "./time_measurements <step> <normalNumber> <threadNumber>\n" );
+		printf( "./time_measurements <step> <normalNumber> [<threadNumber>]\n" );
 		return -1;
 	}
 
 	sscanf( argv[ 1 ], "%f", &step );
 	sscanf( argv[ 2 ], "%d", &normalNumber );
-	sscanf( argv[ 3 ], "%d", &threadNumber );
+	if( argc == 4 )
+		sscanf( argv[ 3 ], "%d", &threadNumber );
 
 	//
 	ScalarFunction func;
@@ -65,22 +66,25 @@ int main( int argc, char* argv[] )
 	timespec tp;
 	double startTime, endTime, buildTime;
 
-	//
-	printf( "makeConvexMultiThread...\n" );
-	clock_gettime( CLOCK_REALTIME, &tp );
-	startTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
+	if( threadNumber != 0 )
+	{
+		//
+		printf( "makeConvexMultiThread...\n" );
+		clock_gettime( CLOCK_REALTIME, &tp );
+		startTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
 
-	func.makeConvexMultiThread( 2, normalNumber, 2 );
+		func.makeConvexMultiThread( 2, normalNumber, 2 );
 
-	clock_gettime( CLOCK_REALTIME, &tp );
-	endTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
+		clock_gettime( CLOCK_REALTIME, &tp );
+		endTime = tp.tv_sec + tp.tv_nsec / 1000000000.0;
 
-	buildTime = endTime - startTime;
-	printf( "Multi-threaded: %g\n", buildTime );
-	saveFunc( func, "hullMT.dat" );
+		buildTime = endTime - startTime;
+		printf( "Multi-threaded: %g\n", buildTime );
+		saveFunc( func, "hullMT.dat" );
 
-	//
-	defineFunc( step, func );
+		//
+		defineFunc( step, func );
+	}
 
 	//
 	printf( "makeConvexGPU...\n" );
