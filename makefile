@@ -35,8 +35,22 @@ ScalarFunctionGPU.o: ScalarFunction.cpp
 gpu.o: gpu.cu
 	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) gpu.cu -o gpu.o
 
+access: access.o
+	$(NVCC) access.o -o access
+
+access.o: access.cu
+	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) access.cu -o access.o
+
+bandwidth: bandwidth.o
+	$(NVCC) bandwidth.o -o bandwidth	
+
+bandwidth.o: bandwidth.cu
+	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) bandwidth.cu -o bandwidth.o
+
 clean:
 	rm *.o
 	rm test
 	rm vis
 	rm time_measurements
+	rm access
+	rm bandwidth
