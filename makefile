@@ -8,26 +8,32 @@ GENCODE_SM10    := -gencode arch=compute_12,code=sm_12
 GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
 GENCODE_FLAGS   := $(GENCODE_SM10) $(GENCODE_SM20)
 
-vis: ScalarFunction
-	$(CC) $(CFLAGS) vis.cpp
+vis: ScalarFunction.o vis.o
 	$(CC) vis.o ScalarFunction.o -o vis -lSDL -lGLU -lGL -lGLEW $(LDFLAGS)
 
-test: ScalarFunctionGPU gpu
-	$(CC) $(CFLAGS) -DGPU test.cpp 
-	$(NVCC) test.o ScalarFunction.o gpu.o -o test -lpng $(LDFLAGS)
+vis.o: vis.cpp
+	$(CC) $(CFLAGS) vis.cpp -o vis.o
 
-time_measurements: ScalarFunctionGPU gpu
-	$(CC) $(CFLAGS) -DGPU time_measurements.cpp 
-	$(NVCC) time_measurements.o ScalarFunction.o gpu.o -o time_measurements $(LDFLAGS)
+test: ScalarFunctionGPU.o gpu.o test.o
+	$(NVCC) test.o ScalarFunctionGPU.o gpu.o -o test -lpng $(LDFLAGS)
 
-ScalarFunction: ScalarFunction.cpp
-	$(CC) $(CFLAGS) ScalarFunction.cpp
+test.o: test.cpp
+	$(CC) $(CFLAGS) -DGPU test.cpp -o test.o
 
-ScalarFunctionGPU: ScalarFunction.cpp
-	$(CC) $(CFLAGS) -DGPU ScalarFunction.cpp
+time_measurements: ScalarFunctionGPU.o gpu.o time_measurements.o
+	$(NVCC) time_measurements.o ScalarFunctionGPU.o gpu.o -o time_measurements $(LDFLAGS)
 
-gpu: 
-	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) gpu.cu
+time_measurements.o: time_measurements.cpp
+	$(CC) $(CFLAGS) -DGPU time_measurements.cpp -o time_measurements.o
+
+ScalarFunction.o: ScalarFunction.cpp
+	$(CC) $(CFLAGS) ScalarFunction.cpp -o ScalarFunction.o
+
+ScalarFunctionGPU.o: ScalarFunction.cpp
+	$(CC) $(CFLAGS) -DGPU ScalarFunction.cpp -o ScalarFunctionGPU.o
+
+gpu.o: gpu.cu
+	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) gpu.cu -o gpu.o
 
 clean:
 	rm *.o
