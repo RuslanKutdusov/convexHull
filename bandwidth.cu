@@ -83,11 +83,7 @@ void bandwidthTest( int gpu1, int gpu2, size_t memSize )
         CUDA_CHECK_RETURN( cudaEventElapsedTime( &measuredTime, start, stop ) );
 
         //
-        float bandwidth = 2.0f * ( 1e3f * memSize * ( float )STEPS) / ( measuredTime * ( float )( 1 << 20 ) );
-        if( i == 0 )
-            bandwidthPeerAccessDisabled = bandwidth;
-        if( i == 1 )
-            bandwidthPeerAccessEnabled = bandwidth;
+        ( i == 0 ? bandwidthPeerAccessDisabled : bandwidthPeerAccessEnabled ) = ( 1e3f * memSize * ( float )STEPS) / ( measuredTime * ( float )( 1 << 20 ) );
     }
 
     printf( "   Bandwidth with enabled peer acces:  %f mb/s\n", bandwidthPeerAccessEnabled );
@@ -109,13 +105,13 @@ void bandwidthTest( int gpu1, int gpu2, size_t memSize )
 //
 int main( int argc, char* argv[] )
 {
-    size_t memSize = 1 << 25;
+    size_t memSize = 1 << 29;
     if( argc == 2 )
-         memSize = atoi( argv[ 3 ] );
+         memSize = atoi( argv[ 1 ] );
 
     int deviceCount;
     CUDA_CHECK_RETURN( cudaGetDeviceCount( &deviceCount ) );
-    printf( "Device count: %d\n", deviceCount );
+    printf( "Device count: %d %u\n", deviceCount, memSize );
 
     for( int i = 0; i < deviceCount; i++ )
         for( int j = i + 1; j < deviceCount; j++ )
