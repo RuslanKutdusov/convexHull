@@ -168,6 +168,10 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 	size_t valsArraySize = func.size();
 	FP* vals = new FP[ valsArraySize ];
 
+	printf( "Memory allocated for hyperplanes: %u\n", hyperplanesArrayLength );
+	printf( "Memory allocated for points: %u\n", pointsArraySize * sizeof( FP ) );
+	printf( "Memory allocated for vals: %u\n", valsArraySize * sizeof( FP ) );
+
 	{
 		size_t i = 0;
 		for( ScalarFunction::iterator iter = func.begin(); iter != func.end(); ++iter, i++ )
@@ -253,18 +257,22 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 	// enabling peer access
 	CUDA_CHECK_RETURN( cudaSetDevice( usedDevices[ 0 ] ) );
 	for( int i = 1; i < ( int )usedDevices.size(); i++ )	
+	{
 		CUDA_CHECK_RETURN( cudaDeviceEnablePeerAccess( usedDevices[ i ], 0 ) );
+	}
 
 	printf( "Used device count: %d\n", deviceCount );
 
 	const size_t pointsPerDevice = func.size() / deviceCount;
+	const size_t pointsForLastDevice = func.size() - pointsPerDevice * ( deviceCount - 1 );
+	#define CALC_POINT_NUMBER_PER_DEVICE int pointsPerCurrentDevice = ( i == deviceCount - 1 ) ? pointsForLastDevice : pointsPerDevice;
 	FP* d_hyperplanes[ MAX_GPU_COUNT ];
 	FP* d_points[ MAX_GPU_COUNT ];
 	FP* d_vals[ MAX_GPU_COUNT ];
 	dim3 gridDim, blockDim;
 
 	//
-	printf( "Running first kernel...\n" );
+	printf( "Memory preparing...\n" );
 	for( int i = 0; i < deviceCount; i++ )
 	{
 		int device = usedDevices[ i ];
@@ -286,9 +294,7 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 		}
 
 		int arrayOffset = pointsPerDevice * i;
-		int pointsPerCurrentDevice = pointsPerDevice;
-		if( i == deviceCount - 1 )
-			pointsPerCurrentDevice = func.size() - pointsPerDevice * i;
+		CALC_POINT_NUMBER_PER_DEVICE
 
 		//
 		int bytesCount = pointsPerCurrentDevice * dimX * sizeof( FP );
@@ -301,8 +307,17 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 		CUDA_CHECK_RETURN( cudaMalloc( &d_vals[ i ], bytesCount ) );
 		CUDA_CHECK_RETURN( cudaMemcpy( d_vals[ i ], vals + arrayOffset, bytesCount, cudaMemcpyHostToDevice ) );
 		//CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_textureVals[ i ], d_vals, bytesCount ) );
+	}
 
-		// run first kernel
+	//
+	printf( "Running first kernel...\n" );
+	for( int i = 0; i < deviceCount; i++ )
+	{
+		int device = usedDevices[ i ];
+		CUDA_CHECK_RETURN( cudaSetDevice( device ) );	
+
+		CALC_POINT_NUMBER_PER_DEVICE
+
 		getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
 		kernel1<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], d_vals[ i ], n, numberOfHyperplanes, pointsPerCurrentDevice );
 	}
@@ -354,9 +369,7 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 			CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ i ], device, d_hyperplanes[ i - 1 ], lastDevice, hyperplanesArrayLength ) );
 		}
 
-		int pointsPerCurrentDevice = pointsPerDevice;
-		if( i == deviceCount - 1 )
-			pointsPerCurrentDevice = func.size() - pointsPerDevice * i;
+		CALC_POINT_NUMBER_PER_DEVICE
 
 		getGridAndBlockDim( pointsPerCurrentDevice, gridDim, blockDim, device );
 		kernel2<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], d_vals[ i ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
@@ -371,12 +384,18 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 		CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 		CUDA_CHECK_RETURN( cudaGetLastError() );
 
-		int arrayOffset = pointsPerDevice * i;
-		int pointsPerCurrentDevice = pointsPerDevice;
-		if( i == deviceCount - 1 )
-			pointsPerCurrentDevice = func.size() - pointsPerDevice * i;
+	}
+
+	printf( "Copying result...\n" );
+	for( int i = 0; i < deviceCount; i++ )
+	{
+		int device = usedDevices[ i ];
+		CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 
 		//
+		int arrayOffset = pointsPerDevice * i;
+		CALC_POINT_NUMBER_PER_DEVICE
+
 		int bytesCount = pointsPerCurrentDevice * sizeof( FP );
 		printf( "Copying result from GPU%d, %d bytes\n", device, bytesCount );
 		CUDA_CHECK_RETURN( cudaMemcpy( vals + arrayOffset, d_vals[ i ], bytesCount, cudaMemcpyDeviceToHost ) );
