@@ -4,7 +4,7 @@
 
 #include "FunctionOfAny.hpp"
 
-typedef float FP;
+typedef double FP;
 typedef std::vector< FP > FPVector;
 
 #define EPSILON FLT_MIN
