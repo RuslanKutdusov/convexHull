@@ -277,6 +277,8 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 	{
 		int device = usedDevices[ i ];
 		CUDA_CHECK_RETURN( cudaSetDevice( device ) );
+		// optimization
+		CUDA_CHECK_RETURN( cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 ) );
 
 		//
 		CUDA_CHECK_RETURN( cudaMalloc( &d_hyperplanes[ i ], hyperplanesArrayLength ) );
