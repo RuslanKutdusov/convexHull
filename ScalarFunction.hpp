@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <float.h>
+#include <stdint.h>
 
 #include "FunctionOfAny.hpp"
 
@@ -14,12 +15,12 @@ class ScalarFunction : public FunctionOfAny< FPVector, FP >
 {
 public:
 	//
-	void makeConvex( const size_t& dimX, const size_t& numberOfPoints );
+	void makeConvex( const uint32_t& dimX, const uint32_t& numberOfPoints );
 	//
-	void makeConvexMultiThread( const size_t& dimX, const size_t& numberOfPoints, const size_t& jobs );
+	void makeConvexMultiThread( const uint32_t& dimX, const uint32_t& numberOfPoints, const uint32_t& jobs );
 
 #ifdef GPU
-	void makeConvexGPU( const size_t& dimX, const size_t& numberOfPoints );
+	void makeConvexGPU( const uint32_t& dimX, const uint32_t& numberOfPoints );
 #endif
 
 private:

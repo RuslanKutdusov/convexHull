@@ -4,6 +4,6 @@
 namespace gpu
 {
 
-void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t& numberOfPoints );
+void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint32_t& numberOfPoints );
 
 }

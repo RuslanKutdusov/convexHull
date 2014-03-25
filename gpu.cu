@@ -1,6 +1,7 @@
 #include "gpu.hpp"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <vector>
 
 #define CUDA_CHECK_RETURN( value ) {											\
@@ -25,25 +26,24 @@ texture< FP, 1, cudaReadModeElementType > g_textureHyperplanes;
 
 
 //
-__global__ void kernel1( FP* hyperplanes, FP* points, FP* vals, const size_t n, size_t numberOfHyperplanes, size_t numberOfPoints )
+__global__ void kernel1( FP* hyperplanes, FP* points, FP* vals, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
 {
-	size_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if( hyperplaneIndex >= numberOfHyperplanes )
 		return;
 
-	size_t dimX = n - 1;
 	// now its offset to hyperplane in 'hyperplanes' array, to remove redundant multiplication at every string
-	size_t offsetToHyperplane = hyperplaneIndex * ( n + 1 );
+	uint32_t offsetToHyperplane = hyperplaneIndex * ( n + 1 );
 
 	FP resultDistance = 0.0;
 	
-	for( size_t k = 0; k < numberOfPoints; k++ )
+	for( uint32_t k = 0; k < numberOfPoints; k++ )
 	{
 		FP d = 0.0;
 
 		// dot product of point and normal is distance
-		for( size_t j = 0; j < dimX; j++ ) 
+		for( uint8_t j = 0; j < dimX; j++ ) 
 			d += points[ k * dimX + j ] * hyperplanes[ offsetToHyperplane + j ]; // TODO: shared memory in k loop?
 		d += vals[ k ] * hyperplanes[ offsetToHyperplane + n - 1 ]; 
 
@@ -56,17 +56,17 @@ __global__ void kernel1( FP* hyperplanes, FP* points, FP* vals, const size_t n, 
 
 
 // TODO: pair?
-__global__ void kernel1_1( FP** hyperplanes, int deviceCount, size_t n, size_t numberOfHyperplanes )
+__global__ void kernel1_1( FP** hyperplanes, int32_t deviceCount, uint32_t n, uint32_t numberOfHyperplanes )
 {
-	size_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if( hyperplaneIndex >= numberOfHyperplanes )
 		return;
 
-	size_t offset = hyperplaneIndex * ( n + 1 ) + n;
+	uint32_t offset = hyperplaneIndex * ( n + 1 ) + n;
 
 	FP resultDistance = hyperplanes[ 0 ][ offset ];
-	for( int i = 1; i < deviceCount; i++ )
+	for( int32_t i = 1; i < deviceCount; i++ )
 	{
 		if( hyperplanes[ i ][ offset ] > resultDistance )
 			resultDistance = hyperplanes[ i ][ offset ];
@@ -76,23 +76,23 @@ __global__ void kernel1_1( FP** hyperplanes, int deviceCount, size_t n, size_t n
 
 
 // sending dimX as argument is to reduce registers usage
-__global__ void kernel2( FP* hyperplanes, FP* points, FP* vals, size_t n, size_t dimX, size_t numberOfHyperplanes, size_t numberOfPoints )
+__global__ void kernel2( FP* hyperplanes, FP* points, FP* vals, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
 {
-	size_t k = blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x;
+	uint32_t k = blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x;
 	if( k >= numberOfPoints )
 		return;
 
 	FP funcVal = vals[ k ];
 	FP convexVal = funcVal;
 
-	for( size_t i = 0; i < numberOfHyperplanes; i++ )
+	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
 		FP val = 0.0;
-		size_t offsetToHyperplane = i * ( n + 1 );
+		uint32_t offsetToHyperplane = i * ( n + 1 );
 		// xi - iter->first
 		// Ni - hyperplane normal
 		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
-		for( size_t j = 0; j < dimX; j++ )
+		for( uint8_t j = 0; j < dimX; j++ )
 			val -= points[ k * dimX + j ] * hyperplanes[ offsetToHyperplane + j ];
 		val += hyperplanes[ offsetToHyperplane + n ];
 		val /= hyperplanes[ offsetToHyperplane + n - 1 ] + EPSILON;
@@ -144,28 +144,28 @@ void getGridAndBlockDim( int n, dim3& gridDim, dim3& blockDim, int device )
 
 
 //
-__host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t& numberOfPoints )
+__host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint32_t& numberOfPoints )
 {
 	if( dimX == 0 )
 		return;
 	
 	FP dFi = PI / ( numberOfPoints - 1 );
 
-	size_t n = dimX + 1; // space dimension
+	uint32_t n = dimX + 1; // space dimension
 
-	size_t numberOfHyperplanes = pow( numberOfPoints, n - 1 );
+	uint32_t numberOfHyperplanes = pow( numberOfPoints, n - 1 );
 
 	// first x0.. x(n - 2) elements are independent vars. in 2D it will be x
 	// x(n - 1) element dependent var. . in 2D it will be y
 	// xn - constant, represents distance between O and hyperplane
-	size_t hyperplanesArraySize = numberOfHyperplanes * ( n + 1 );
-	size_t hyperplanesArrayLength = hyperplanesArraySize * sizeof( FP );
+	uint32_t hyperplanesArraySize = numberOfHyperplanes * ( n + 1 );
+	uint32_t hyperplanesArrayLength = hyperplanesArraySize * sizeof( FP );
 	FP* hyperplanes = new FP[ hyperplanesArraySize ];
 
-	size_t pointsArraySize = dimX * func.size();
+	uint32_t pointsArraySize = dimX * func.size();
 	FP* points = new FP[ pointsArraySize ];
 
-	size_t valsArraySize = func.size();
+	uint32_t valsArraySize = func.size();
 	FP* vals = new FP[ valsArraySize ];
 
 	printf( "Memory allocated for hyperplanes: %u\n", hyperplanesArrayLength );
@@ -173,10 +173,10 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 	printf( "Memory allocated for vals: %u\n", valsArraySize * sizeof( FP ) );
 
 	{
-		size_t i = 0;
+		uint32_t i = 0;
 		for( ScalarFunction::iterator iter = func.begin(); iter != func.end(); ++iter, i++ )
 		{
-			for( size_t j = 0; j < dimX; j++ )
+			for( uint32_t j = 0; j < dimX; j++ )
 				points[ i * dimX + j ] = iter->first[ j ];
 
 			vals[ i ] = iter->second;
@@ -185,14 +185,14 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 
 	FPVector fi( dimX, 0.0 );
 
-	for( size_t i = 0; i < numberOfHyperplanes; i++ )
+	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
-		for( size_t j = 0; j < n; j++ )
+		for( uint32_t j = 0; j < n; j++ )
 		{
 			FP* normal = &hyperplanes[ i * ( n + 1 ) ];
 
 			normal[ j ] = 1.0;
-			for( size_t k = 0; k < j; k++ )
+			for( uint32_t k = 0; k < j; k++ )
 				normal[ j ] *= sin( fi[ k ] );
 
 			if( j != n - 1 )
@@ -201,7 +201,7 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 
 		// not good enough
 		bool shift = true;
-		for( size_t k = 0; ( k < dimX ) && shift; k++ )
+		for( uint32_t k = 0; ( k < dimX ) && shift; k++ )
 		{
 			if( fabs( fi[ k ] - PI ) <= EPSILON )
 			{
@@ -263,8 +263,8 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 
 	printf( "Used device count: %d\n", deviceCount );
 
-	const size_t pointsPerDevice = func.size() / deviceCount;
-	const size_t pointsForLastDevice = func.size() - pointsPerDevice * ( deviceCount - 1 );
+	const uint32_t pointsPerDevice = func.size() / deviceCount;
+	const uint32_t pointsForLastDevice = func.size() - pointsPerDevice * ( deviceCount - 1 );
 	#define CALC_POINT_NUMBER_PER_DEVICE int pointsPerCurrentDevice = ( i == deviceCount - 1 ) ? pointsForLastDevice : pointsPerDevice;
 	FP* d_hyperplanes[ MAX_GPU_COUNT ];
 	FP* d_points[ MAX_GPU_COUNT ];
@@ -321,7 +321,7 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 		CALC_POINT_NUMBER_PER_DEVICE
 
 		getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
-		kernel1<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], d_vals[ i ], n, numberOfHyperplanes, pointsPerCurrentDevice );
+		kernel1<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], d_vals[ i ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
 	}
 
 	//
@@ -429,7 +429,7 @@ __host__ void makeConvex( ScalarFunction& func, const size_t& dimX, const size_t
 	//func.clear();
 
 	printf( "Storing result...\n" );	
-	for( size_t k = 0; k < func.size(); k++ )
+	for( uint32_t k = 0; k < func.size(); k++ )
 	{
 		FPVector x( &points[ k * dimX ], &points[ ( k + 1 ) * dimX ] );
 		func.define( x ) = vals[ k ];
