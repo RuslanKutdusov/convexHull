@@ -5,10 +5,18 @@
 
 #include "FunctionOfAny.hpp"
 
-typedef double FP;
+#if defined( FLOAT_PRECISION )
+	typedef float FP;
+	#define EPSILON FLT_MIN
+#elif defined( DOUBLE_PRECISION )
+	typedef double FP;
+	#define EPSILON DBL_MIN
+#else
+	#error "Unspecified precision"
+#endif
+
 typedef std::vector< FP > FPVector;
 
-#define EPSILON FLT_MIN
 #define PI ( FP )M_PI
 
 class ScalarFunction : public FunctionOfAny< FPVector, FP >

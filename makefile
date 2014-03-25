@@ -1,7 +1,8 @@
 CC = g++ -g
 NVCC = nvcc
-CFLAGS = $(BOOST_HEADERS) -O2 -c -Wall -pedantic
-CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c -g --ptxas-options=-v
+PRECISION = -DDOUBLE_PRECISION
+CFLAGS = $(BOOST_HEADERS) -O2 -c -Wall -pedantic $(PRECISION)
+CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c -g --ptxas-options=-v $(PRECISION)
 LDFLAGS = $(BOOST_LD_PATH) -lpthread -lboost_thread -lboost_system -lboost_serialization
 
 GENCODE_SM10    := -gencode arch=compute_12,code=sm_12
