@@ -1,8 +1,9 @@
 *.o
 *.png
 *.dat
+*.plot
 test
 vis
 time_measurements
-points*
+
 

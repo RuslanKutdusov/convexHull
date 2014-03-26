@@ -16,7 +16,7 @@ vis.o: vis.cpp
 	$(CC) $(CFLAGS) vis.cpp -o vis.o
 
 test: ScalarFunctionGPU.o gpu.o test.o
-	$(NVCC) test.o ScalarFunctionGPU.o gpu.o -o test -lpng $(LDFLAGS)
+	$(NVCC) test.o ScalarFunctionGPU.o gpu.o -o test $(LDFLAGS)
 
 test.o: test.cpp
 	$(CC) $(CFLAGS) -DGPU test.cpp -o test.o

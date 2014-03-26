@@ -8,7 +8,7 @@
 void test1_ScalarFunction()
 {
 	ScalarFunction func;
-	FILE* file = fopen( "points_test1_func", "w" );
+	FILE* file = fopen( "plots/points_test1_func.plot", "w" );
 
 	std::vector< FP > x( 1 );
 	x[ 0 ] = -M_PI;
@@ -31,7 +31,7 @@ void test1_ScalarFunction()
 
 	func.makeConvex( 1, 100 );
 
-	file = fopen( "points_test1_ch", "w" );
+	file = fopen( "plots/points_test1_ch.plot", "w" );
 
 	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
 	{
@@ -46,7 +46,7 @@ void test1_ScalarFunction()
 void test1_ScalarFunctionMT()
 {
 	ScalarFunction func;
-	FILE* file = fopen( "points_test1MT_func", "w" );
+	FILE* file = fopen( "plots/points_test1MT_func.plot", "w" );
 
 	std::vector< FP > x( 1 );
 	x[ 0 ] = -M_PI;
@@ -69,7 +69,7 @@ void test1_ScalarFunctionMT()
 
 	func.makeConvexMultiThread( 1, 100, 2 );
 
-	file = fopen( "points_test1MT_ch", "w" );
+	file = fopen( "plots/points_test1MT_ch.plot", "w" );
 
 	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
 	{
@@ -84,9 +84,9 @@ void test1_ScalarFunctionMT()
 void test2_ScalarFunction()
 {
 	ScalarFunction func;
-	FILE* file = fopen( "points_test2_func", "w" );
+	FILE* file = fopen( "plots/points_test2_func.plot", "w" );
 
-	FP step = 0.5;
+	FP step = 0.05;
 
 	for ( FP x = -5.0; x <= 5.0; x += step ) 
 	{
@@ -107,9 +107,9 @@ void test2_ScalarFunction()
 
 	fclose( file );
 
-	func.makeConvex( 2, 10 );
+	func.makeConvex( 2, 50 );
 
-	file = fopen( "points_test2_ch", "w" );
+	file = fopen( "plots/points_test2_ch.plot", "w" );
 
 	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
 	{
@@ -124,9 +124,9 @@ void test2_ScalarFunction()
 void test2_ScalarFunctionMT()
 {
 	ScalarFunction func;
-	FILE* file = fopen( "points_test2MT_func", "w" );
+	FILE* file = fopen( "plots/points_test2MT_func.plot", "w" );
 
-	FP step = 0.5;
+	FP step = 0.05;
 
 	for ( FP x = -5.0; x <= 5.0; x += step ) 
 	{
@@ -149,7 +149,7 @@ void test2_ScalarFunctionMT()
 
 	func.makeConvexMultiThread( 2, 50, 2 );
 
-	file = fopen( "points_test2MT_ch", "w" );
+	file = fopen( "plots/points_test2MT_ch.plot", "w" );
 
 	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
 	{
@@ -164,9 +164,9 @@ void test2_ScalarFunctionMT()
 void test2_ScalarFunctionGPU()
 {
 	ScalarFunction func;
-	FILE* file = fopen( "points_test2GPU_func", "w" );
+	FILE* file = fopen( "plots/points_test2GPU_func.plot", "w" );
 
-	FP step = 0.5;
+	FP step = 0.05;
 
 	for ( FP x = -5.0; x <= 5.0; x += step ) 
 	{
@@ -189,7 +189,7 @@ void test2_ScalarFunctionGPU()
 
 	func.makeConvexGPU( 2, 50 );
 
-	file = fopen( "points_test2GPU_ch", "w" );
+	file = fopen( "plots/points_test2GPU_ch.plot", "w" );
 
 	for( ScalarFunction::const_iterator iter = func.begin(); iter != func.end(); ++iter )
 	{

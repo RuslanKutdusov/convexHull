@@ -9,6 +9,6 @@ set ylabel "y"
 
 set style line 1 lt 1 pt 7 
 
-plot "points_test1_func" with points,  \
-         "points_test1_ch" with points
+plot "points_test1_func.plot" with points,  \
+         "points_test1_ch.plot" with points
 
