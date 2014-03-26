@@ -334,7 +334,8 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 		CUDA_CHECK_RETURN( cudaGetLastError() );
 	}
 
-	//
+	// no need to run next kernel if device only one
+	if( deviceCount > 1 )
 	{
 		//
 		printf( "Running second kernel...\n" );
