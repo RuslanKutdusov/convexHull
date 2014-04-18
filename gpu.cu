@@ -18,52 +18,44 @@ namespace gpu
 
 //
 const int MAX_GPU_COUNT = 8;
-
-// TODO: cuda arrays??
-texture< FP, 1, cudaReadModeElementType > g_texturePoints;
-texture< FP, 1, cudaReadModeElementType > g_textureVals;
-texture< FP, 1, cudaReadModeElementType > g_textureHyperplanes;
+const uint32_t BLOCK_DIM = 192;
 
 
 //
-__global__ void kernel1( FP* hyperplanes, FP* points, FP* vals, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
+__global__ void kernel1( FP* hyperplanes, FP* points, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
 {
-	uint32_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if( hyperplaneIndex >= numberOfHyperplanes )
+	if( blockIdx.x * blockDim.x + threadIdx.x >= numberOfHyperplanes )
 		return;
 
-	// now its offset to hyperplane in 'hyperplanes' array, to remove redundant multiplication at every string
-	uint32_t offsetToHyperplane = hyperplaneIndex * ( n + 1 );
+	uint32_t offsetToHyperplanesChunk = blockIdx.x * blockDim.x * ( n + 1 );
 
 	FP resultDistance = 0.0;
-	
 	for( uint32_t k = 0; k < numberOfPoints; k++ )
 	{
 		FP d = 0.0;
 
+		uint32_t offsetToPoint = ( k - k % BLOCK_DIM ) * n + ( k % BLOCK_DIM );
+
 		// dot product of point and normal is distance
 		for( uint8_t j = 0; j < dimX; j++ ) 
-			d += points[ k * dimX + j ] * hyperplanes[ offsetToHyperplane + j ]; // TODO: shared memory in k loop?
-		d += vals[ k ] * hyperplanes[ offsetToHyperplane + n - 1 ]; 
+			d += points[ offsetToPoint + j * BLOCK_DIM ] * hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + j * BLOCK_DIM ];
+		d += points[ offsetToPoint + ( n - 1 ) * BLOCK_DIM ] * hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ]; 
 
 		if( d > resultDistance )
 			resultDistance = d;
 	}
 
-	hyperplanes[ offsetToHyperplane + n ] = resultDistance;
+	hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + n * BLOCK_DIM ] = resultDistance;
 }
 
 
-// TODO: pair?
+//
 __global__ void kernel1_1( FP** hyperplanes, int32_t deviceCount, uint32_t n, uint32_t numberOfHyperplanes )
 {
-	uint32_t hyperplaneIndex = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if( hyperplaneIndex >= numberOfHyperplanes )
+	if( blockIdx.x * blockDim.x + threadIdx.x >= numberOfHyperplanes )
 		return;
 
-	uint32_t offset = hyperplaneIndex * ( n + 1 ) + n;
+	uint32_t offset = blockIdx.x * blockDim.x * ( n + 1 ) + threadIdx.x + n * BLOCK_DIM;
 
 	FP resultDistance = hyperplanes[ 0 ][ offset ];
 	for( int32_t i = 1; i < deviceCount; i++ )
@@ -76,26 +68,28 @@ __global__ void kernel1_1( FP** hyperplanes, int32_t deviceCount, uint32_t n, ui
 
 
 // sending dimX as argument is to reduce registers usage
-__global__ void kernel2( FP* hyperplanes, FP* points, FP* vals, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
+__global__ void kernel2( FP* hyperplanes, FP* points, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
 {
-	uint32_t k = blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x;
-	if( k >= numberOfPoints )
+	if( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x >= numberOfPoints )
 		return;
 
-	FP funcVal = vals[ k ];
+	uint32_t offsetToPointsChunk = ( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y ) * n;
+
+	FP funcVal = points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ];
 	FP convexVal = funcVal;
 
 	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
+		uint32_t offsetToHyperplane = ( i - i % BLOCK_DIM ) * ( n + 1 ) + ( i % BLOCK_DIM );
+
 		FP val = 0.0;
-		uint32_t offsetToHyperplane = i * ( n + 1 );
 		// xi - iter->first
 		// Ni - hyperplane normal
 		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
 		for( uint8_t j = 0; j < dimX; j++ )
-			val -= points[ k * dimX + j ] * hyperplanes[ offsetToHyperplane + j ];
-		val += hyperplanes[ offsetToHyperplane + n ];
-		val /= hyperplanes[ offsetToHyperplane + n - 1 ] + EPSILON;
+			val -= points[ offsetToPointsChunk + threadIdx.x + j * BLOCK_DIM ] * hyperplanes[ offsetToHyperplane + j * BLOCK_DIM ];
+		val += hyperplanes[ offsetToHyperplane + n * BLOCK_DIM ];
+		val /= hyperplanes[ offsetToHyperplane + ( n - 1 ) * BLOCK_DIM ] + EPSILON;
 
 		if( i == 0 )
 		{
@@ -107,7 +101,7 @@ __global__ void kernel2( FP* hyperplanes, FP* points, FP* vals, uint32_t n, uint
 			convexVal = val;
 	}
 
-	vals[ k ] = convexVal;
+	points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ] = convexVal;
 }
 
 
@@ -158,28 +152,31 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 	// first x0.. x(n - 2) elements are independent vars. in 2D it will be x
 	// x(n - 1) element dependent var. . in 2D it will be y
 	// xn - constant, represents distance between O and hyperplane
-	uint32_t hyperplanesArraySize = numberOfHyperplanes * ( n + 1 );
-	uint32_t hyperplanesArrayLength = hyperplanesArraySize * sizeof( FP );
+	uint32_t hyperplanesNumInArray = numberOfHyperplanes;
+	uint32_t mod = hyperplanesNumInArray % BLOCK_DIM;
+	hyperplanesNumInArray += ( mod == 0 ) ? 0 : BLOCK_DIM - mod;
+	uint32_t hyperplanesArraySize = hyperplanesNumInArray * ( n + 1 );
 	FP* hyperplanes = new FP[ hyperplanesArraySize ];
 
-	uint32_t pointsArraySize = dimX * func.size();
+	uint32_t pointsNumInArray = func.size();
+	mod = pointsNumInArray % BLOCK_DIM;
+	pointsNumInArray += ( mod == 0 ) ? 0 : BLOCK_DIM - mod;
+	uint32_t pointsArraySize = pointsNumInArray * n;
 	FP* points = new FP[ pointsArraySize ];
 
-	uint32_t valsArraySize = func.size();
-	FP* vals = new FP[ valsArraySize ];
-
-	printf( "Memory allocated for hyperplanes: %u\n", hyperplanesArrayLength );
-	printf( "Memory allocated for points: %u\n", pointsArraySize * sizeof( FP ) );
-	printf( "Memory allocated for vals: %u\n", valsArraySize * sizeof( FP ) );
+	printf( "Memory allocated for hyperplanes: %u %u\n", hyperplanesArraySize * sizeof( FP ), numberOfHyperplanes );
+	printf( "Memory allocated for points: %u %u %u\n", pointsArraySize * sizeof( FP ), pointsArraySize, func.size() );
 
 	{
 		uint32_t i = 0;
 		for( ScalarFunction::iterator iter = func.begin(); iter != func.end(); ++iter, i++ )
 		{
-			for( uint32_t j = 0; j < dimX; j++ )
-				points[ i * dimX + j ] = iter->first[ j ];
+			uint32_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
 
-			vals[ i ] = iter->second;
+			for( uint32_t j = 0; j < dimX; j++ )
+				points[ offsetToPoint + j * BLOCK_DIM ] = iter->first[ j ];
+
+			points[ offsetToPoint + ( n - 1 ) * BLOCK_DIM ] = iter->second;
 		}
 	}
 
@@ -187,16 +184,18 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 
 	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
+		uint32_t offset = ( i - i % BLOCK_DIM ) * ( n + 1 ) + ( i % BLOCK_DIM );
+
 		for( uint32_t j = 0; j < n; j++ )
 		{
-			FP* normal = &hyperplanes[ i * ( n + 1 ) ];
+			FP* normalComponent = &hyperplanes[ offset + j * BLOCK_DIM ];
 
-			normal[ j ] = 1.0;
+			*normalComponent = 1.0;
 			for( uint32_t k = 0; k < j; k++ )
-				normal[ j ] *= sin( fi[ k ] );
+				*normalComponent *= sin( fi[ k ] );
 
 			if( j != n - 1 )
-				normal[ j ] *= cos( fi[ j ] );
+				*normalComponent *= cos( fi[ j ] );
 		}
 
 		// not good enough
@@ -263,12 +262,12 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 
 	printf( "Used device count: %d\n", deviceCount );
 
-	const uint32_t pointsPerDevice = func.size() / deviceCount;
-	const uint32_t pointsForLastDevice = func.size() - pointsPerDevice * ( deviceCount - 1 );
-	#define CALC_POINT_NUMBER_PER_DEVICE int pointsPerCurrentDevice = ( i == deviceCount - 1 ) ? pointsForLastDevice : pointsPerDevice;
+	const uint32_t pointsChunksNumber = pointsNumInArray / BLOCK_DIM;
+	const uint32_t pointsChunksPerDevice = pointsChunksNumber / deviceCount;
+	const uint32_t pointsChunksForLastDevice = pointsChunksNumber - pointsChunksPerDevice * ( deviceCount - 1 );
+	#define CALC_POINT_NUMBER_PER_DEVICE int pointsPerCurrentDevice = ( ( i == deviceCount - 1 ) ? pointsChunksForLastDevice : pointsChunksPerDevice ) * BLOCK_DIM;
 	FP* d_hyperplanes[ MAX_GPU_COUNT ];
 	FP* d_points[ MAX_GPU_COUNT ];
-	FP* d_vals[ MAX_GPU_COUNT ];
 	dim3 gridDim, blockDim;
 
 	//
@@ -281,34 +280,26 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 		CUDA_CHECK_RETURN( cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 ) );
 
 		//
-		CUDA_CHECK_RETURN( cudaMalloc( &d_hyperplanes[ i ], hyperplanesArrayLength ) );
-		//CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_textureHyperplanes[ i ], d_hyperplanes[ i ], hyperplanesArrayLength ) );
+		CUDA_CHECK_RETURN( cudaMalloc( &d_hyperplanes[ i ], hyperplanesArraySize * sizeof( FP ) ) );
 
 		if( i == 0 )
 		{
-			CUDA_CHECK_RETURN( cudaMemcpy( d_hyperplanes[ i ], hyperplanes, hyperplanesArrayLength, cudaMemcpyHostToDevice ) );
+			CUDA_CHECK_RETURN( cudaMemcpy( d_hyperplanes[ i ], hyperplanes, hyperplanesArraySize * sizeof( FP ), cudaMemcpyHostToDevice ) );
 		}
 		else
 		{
 			// TODO: smart copying, pair
 			int lastDevice = usedDevices[ i - 1 ];
-			CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ i ], device, d_hyperplanes[ i - 1 ], lastDevice, hyperplanesArrayLength ) );
+			CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ i ], device, d_hyperplanes[ i - 1 ], lastDevice, hyperplanesArraySize * sizeof( FP ) ) );
 		}
 
-		int arrayOffset = pointsPerDevice * i;
+		int arrayOffset = pointsChunksPerDevice * BLOCK_DIM * i * n;
 		CALC_POINT_NUMBER_PER_DEVICE
 
 		//
-		int bytesCount = pointsPerCurrentDevice * dimX * sizeof( FP );
+		int bytesCount = pointsPerCurrentDevice * n * sizeof( FP );
 		CUDA_CHECK_RETURN( cudaMalloc( &d_points[ i ], bytesCount ) );
-		CUDA_CHECK_RETURN( cudaMemcpy( d_points[ i ], points + arrayOffset * dimX, bytesCount, cudaMemcpyHostToDevice ) );
-		//CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_texturePoints[ i ], d_points[ i ], bytesCount ) );
-
-		//
-		bytesCount = pointsPerCurrentDevice * sizeof( FP );
-		CUDA_CHECK_RETURN( cudaMalloc( &d_vals[ i ], bytesCount ) );
-		CUDA_CHECK_RETURN( cudaMemcpy( d_vals[ i ], vals + arrayOffset, bytesCount, cudaMemcpyHostToDevice ) );
-		//CUDA_CHECK_RETURN( cudaBindTexture( NULL, g_textureVals[ i ], d_vals, bytesCount ) );
+		CUDA_CHECK_RETURN( cudaMemcpy( d_points[ i ], points + arrayOffset, bytesCount, cudaMemcpyHostToDevice ) );
 	}
 
 	//
@@ -321,7 +312,7 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 		CALC_POINT_NUMBER_PER_DEVICE
 
 		getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
-		kernel1<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], d_vals[ i ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
+		kernel1<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
 	}
 
 	//
@@ -369,13 +360,13 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 		{
 			// TODO: smart copying, pair
 			int lastDevice = usedDevices[ i - 1 ];
-			CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ i ], device, d_hyperplanes[ i - 1 ], lastDevice, hyperplanesArrayLength ) );
+			CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ i ], device, d_hyperplanes[ i - 1 ], lastDevice, hyperplanesArraySize * sizeof( FP ) ) );
 		}
 
 		CALC_POINT_NUMBER_PER_DEVICE
 
 		getGridAndBlockDim( pointsPerCurrentDevice, gridDim, blockDim, device );
-		kernel2<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], d_vals[ i ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
+		kernel2<<< gridDim, blockDim >>>( d_hyperplanes[ i ], d_points[ i ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
 	}
 
 	//
@@ -396,44 +387,29 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 		CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 
 		//
-		int arrayOffset = pointsPerDevice * i;
+		int arrayOffset = pointsChunksPerDevice * BLOCK_DIM * i * n;
 		CALC_POINT_NUMBER_PER_DEVICE
 
-		int bytesCount = pointsPerCurrentDevice * sizeof( FP );
+		int bytesCount = pointsPerCurrentDevice * n * sizeof( FP );
 		printf( "Copying result from GPU%d, %d bytes\n", device, bytesCount );
-		CUDA_CHECK_RETURN( cudaMemcpy( vals + arrayOffset, d_vals[ i ], bytesCount, cudaMemcpyDeviceToHost ) );
+		CUDA_CHECK_RETURN( cudaMemcpy( points + arrayOffset, d_points[ i ], bytesCount, cudaMemcpyDeviceToHost ) );
+		
 	}
-
-	// int device = usedDevices[ 0 ];
-	// CUDA_CHECK_RETURN( cudaSetDevice( device ) );
-
-	// FP* d_points_;
-	// CUDA_CHECK_RETURN( cudaMalloc( &d_points_, pointsArrayLength ) );
-	// CUDA_CHECK_RETURN( cudaMemcpy( d_points_, points, pointsArrayLength, cudaMemcpyHostToDevice ) );
-
-	// FP* d_vals_;
-	// CUDA_CHECK_RETURN( cudaMalloc( &d_vals_, valsArrayLength ) );
-	// CUDA_CHECK_RETURN( cudaMemcpy( d_vals_, vals, valsArrayLength, cudaMemcpyHostToDevice ) );
-
-	// // run second kernel
-	// getGridAndBlockDim( func.size(), gridDim, blockDim, device );
-	// kernel2<<< gridDim, blockDim >>>( d_hyperplanes[ 0 ], d_points_, d_vals_, n, dimX, numberOfHyperplanes, func.size() );
-
-	// CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
-	// CUDA_CHECK_RETURN( cudaGetLastError() );
-
-	// CUDA_CHECK_RETURN( cudaMemcpy( vals, d_vals_, valsArraySize * sizeof( FP ), cudaMemcpyDeviceToHost ) );
-	// CUDA_CHECK_RETURN( cudaGetLastError() );
 
 
 	// ???
-	//func.clear();
-
+	uint32_t funcSize = func.size();
+	func.clear();
 	printf( "Storing result...\n" );	
-	for( uint32_t k = 0; k < func.size(); k++ )
+	for( uint32_t i = 0; i < funcSize; i++ )
 	{
-		FPVector x( &points[ k * dimX ], &points[ ( k + 1 ) * dimX ] );
-		func.define( x ) = vals[ k ];
+		FPVector x( dimX );
+		uint32_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
+
+		for( uint32_t j = 0; j < dimX; j++ )
+			x[ j ] = points[ offsetToPoint + j * BLOCK_DIM ];
+
+		func.define( x ) = points[ offsetToPoint + ( n - 1 ) * BLOCK_DIM ];
 	}
 
 	for( int i = 0; i < deviceCount; i++ )
@@ -442,8 +418,6 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 		CUDA_CHECK_RETURN( cudaSetDevice( device ) ); 
 		CUDA_CHECK_RETURN( cudaFree( ( void* )d_hyperplanes[ i ] ) );
 		CUDA_CHECK_RETURN( cudaFree( ( void* )d_points[ i ] ) );
-		CUDA_CHECK_RETURN( cudaFree( ( void* )d_vals[ i ] ) );
-
 		//
 		CUDA_CHECK_RETURN( cudaDeviceReset() );
 		CUDA_CHECK_RETURN( cudaGetLastError() );
@@ -451,7 +425,6 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 
 	delete[] hyperplanes;
 	delete[] points;
-	delete[] vals;
 
 	printf( "Done\n" );
 }
