@@ -30,22 +30,25 @@ __global__ void kernel1( FP* hyperplanes, FP* points, uint32_t n, uint32_t dimX,
 	uint32_t offsetToHyperplanesChunk = blockIdx.x * blockDim.x * ( n + 1 );
 
 	FP resultDistance = 0.0;
-	for( uint32_t k = 0; k < numberOfPoints; k++ )
-	{
-		FP d = 0.0;
+	for( uint32_t k = 0; k < numberOfPoints * n; k += n * BLOCK_DIM )
+		#pragma unroll
+		for( uint32_t i = 0; i < BLOCK_DIM; i++ )
+		{
+			FP d = 0.0;
 
-		uint32_t offsetToPoint = ( k - k % BLOCK_DIM ) * n + ( k % BLOCK_DIM );
+			uint32_t offsetToPoint = k + i;
 
-		// dot product of point and normal is distance
-		for( uint8_t j = 0; j < dimX; j++ ) 
-			d += points[ offsetToPoint + j * BLOCK_DIM ] * hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + j * BLOCK_DIM ];
-		d += points[ offsetToPoint + ( n - 1 ) * BLOCK_DIM ] * hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ]; 
+			// dot product of point and normal is distance
+			uint16_t j = 0;
+			for( ; j < dimX * BLOCK_DIM; j += BLOCK_DIM ) 
+				d += points[ offsetToPoint + j ] * hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + j ];
+			d += points[ offsetToPoint + j ] * hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + j ]; 
 
-		if( d > resultDistance )
-			resultDistance = d;
-	}
-
-	hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + n * BLOCK_DIM ] = resultDistance;
+			if( d > resultDistance )
+				resultDistance = d;
+		}
+ 
+    hyperplanes[ offsetToHyperplanesChunk + threadIdx.x + n * BLOCK_DIM ] = resultDistance;
 }
 
 
@@ -100,6 +103,7 @@ __global__ void kernel2( FP* hyperplanes, FP* points, uint32_t n, uint32_t dimX,
 		if( val < convexVal && val >= funcVal )
 			convexVal = val;
 	}
+
 
 	points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ] = convexVal;
 }
@@ -178,6 +182,16 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 
 			points[ offsetToPoint + ( n - 1 ) * BLOCK_DIM ] = iter->second;
 		}
+
+		for( ; i < pointsNumInArray; i++ )
+		{
+			uint32_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
+
+			for( uint32_t j = 0; j < dimX; j++ )
+				points[ offsetToPoint + j * BLOCK_DIM ] = 0.0;
+
+			points[ offsetToPoint + ( n - 1 ) * BLOCK_DIM ] = 0.0;
+		}
 	}
 
 	FPVector fi( dimX, 0.0 );
@@ -217,6 +231,7 @@ __host__ void makeConvex( ScalarFunction& func, const uint32_t& dimX, const uint
 				fi[ k ] = PI;
 		}
 	}
+
 
 	//
 	int deviceCount = 0;
