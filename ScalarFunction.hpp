@@ -60,7 +60,7 @@ private:
 	//
 	void 		CopyData( const int& dimX );
 	void 		InitHyperplanes( const int& dimX, const int& numberOfHyperplanes, const FP& dFi );
-	int 		PrepareDevices();
+	int 		PrepareDevices( const int& neededDeviceNumber );
 	void 		DeviceMemoryPreparing( const int& n, const int& deviceCount );
 	int 		CalcPointsNumberPerDevice( const int& device, const int& deviceCount );
 	void 		Synchronize();

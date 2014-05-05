@@ -15,6 +15,7 @@
 
 //
 const int BLOCK_DIM = 192;
+const int MAX_THREADS_PER_DEVICE = 1536;
 
 
 //
@@ -211,11 +212,11 @@ void ScalarFunction::InitHyperplanes( const int& dimX, const int& numberOfHyperp
 
 
 //
-int ScalarFunction::PrepareDevices()
+int ScalarFunction::PrepareDevices( const int& neededDeviceNumber )
 {
 	int deviceCount;
 	CUDA_CHECK_RETURN( cudaGetDeviceCount( &deviceCount ) );
-	printf( "Available device count: %d\n", deviceCount );
+	printf( "Available device count: %d, needed device count: %d\n", deviceCount, neededDeviceNumber );
 	if( deviceCount > MAX_GPU_COUNT )
 	{
 		printf( "Too much GPUs %d\n", deviceCount );
@@ -233,6 +234,22 @@ int ScalarFunction::PrepareDevices()
 			devicesGroups[ 0 ].push_back( j );
 		else
 			devicesGroups[ 1 ].push_back( j );
+	}
+
+	if( deviceCount > neededDeviceNumber )
+	{
+		if( neededDeviceNumber <= ( int )devicesGroups[ 0 ].size() )
+		{
+			int devicesToRemove = ( int )devicesGroups[ 0 ].size() - neededDeviceNumber;
+			devicesGroups[ 0 ].erase( devicesGroups[ 0 ].end() - devicesToRemove, devicesGroups[ 0 ].end() );
+			devicesGroups[ 1 ].clear();
+		}
+		else
+		{
+			int devicesToRemove = deviceCount - neededDeviceNumber;
+			devicesGroups[ 1 ].erase( devicesGroups[ 1 ].end() - devicesToRemove, devicesGroups[ 1 ].end() );
+		}
+		deviceCount = neededDeviceNumber;
 	}
 
 	// enabling peer access
@@ -485,14 +502,21 @@ void ScalarFunction::makeConvexGPU( const int& dimX, const int& numberOfPoints )
 	pointsArraySize = pointsNum * n;
 	points = new FP[ pointsArraySize ];
 
-	printf( "Memory allocated for hyperplanes: %d %d\n", hyperplanesArraySize * sizeof( FP ), numberOfHyperplanes );
-	printf( "Memory allocated for points: %d %d %u\n", pointsArraySize * sizeof( FP ), pointsArraySize, size() );
+	printf( "Number of hyperplanes: %d\n", numberOfHyperplanes );
+	printf( "Number of points: %d, unused: %d\n", pointsNum, ( int )( pointsNum - size() ) );
+
+	printf( "Memory allocated for hyperplanes: %d\n", hyperplanesArraySize * sizeof( FP ) );
+	printf( "Memory allocated for points: %d\n", pointsArraySize * sizeof( FP ) );
 
 	CopyData( dimX );
 
 	InitHyperplanes( dimX, numberOfHyperplanes, dFi );
 
-	int deviceCount = PrepareDevices();
+	int neededDeviceNumber = pointsNum / MAX_THREADS_PER_DEVICE;
+	if( neededDeviceNumber == 0 ) neededDeviceNumber = 1;
+	neededDeviceNumber = neededDeviceNumber > MAX_GPU_COUNT ? MAX_GPU_COUNT : neededDeviceNumber;
+
+	int deviceCount = PrepareDevices( neededDeviceNumber );
 
 	// общее кол-во чанков из точек
 	pointsChunksNumber = pointsNum / BLOCK_DIM;
