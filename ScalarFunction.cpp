@@ -258,14 +258,3 @@ void ScalarFunction::makeConvexMultiThread( const uint32_t& dimX, const uint32_t
 		}
 	}
 }
-
-//
-#ifdef GPU
-#include "gpu.hpp"
-
-void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& numberOfPoints )
-{
-	gpu::makeConvex( *this, dimX, numberOfPoints );
-}
-
-#endif

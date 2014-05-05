@@ -5,9 +5,8 @@ CFLAGS = $(BOOST_HEADERS) -O2 -c -Wall -pedantic $(PRECISION)
 CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c -g --ptxas-options=-v $(PRECISION)
 LDFLAGS = $(BOOST_LD_PATH) -lpthread -lboost_thread -lboost_system -lboost_serialization
 
-GENCODE_SM10    := -gencode arch=compute_12,code=sm_12
 GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
-GENCODE_FLAGS   := $(GENCODE_SM10) $(GENCODE_SM20)
+GENCODE_FLAGS   := $(GENCODE_SM20)
 
 vis: ScalarFunction.o vis.o
 	$(CC) vis.o ScalarFunction.o -o vis -lSDL -lGLU -lGL -lGLEW $(LDFLAGS)
@@ -21,17 +20,17 @@ test: ScalarFunctionGPU.o gpu.o test.o
 test.o: test.cpp
 	$(CC) $(CFLAGS) -DGPU test.cpp -o test.o
 
-time_measurements: ScalarFunctionGPU.o gpu.o time_measurements.o
-	$(NVCC) time_measurements.o ScalarFunctionGPU.o gpu.o -o time_measurements $(LDFLAGS)
+time_measurements: ScalarFunction.o ScalarFunctionGPU.o time_measurements.o
+	$(NVCC) time_measurements.o ScalarFunction.o ScalarFunctionGPU.o -o time_measurements $(LDFLAGS)
 
 time_measurements.o: time_measurements.cpp
 	$(CC) $(CFLAGS) -DGPU time_measurements.cpp -o time_measurements.o
 
 ScalarFunction.o: ScalarFunction.cpp
-	$(CC) $(CFLAGS) ScalarFunction.cpp -o ScalarFunction.o
+	$(CC) $(CFLAGS) -DGPU ScalarFunction.cpp -o ScalarFunction.o
 
-ScalarFunctionGPU.o: ScalarFunction.cpp
-	$(CC) $(CFLAGS) -DGPU ScalarFunction.cpp -o ScalarFunctionGPU.o
+ScalarFunctionGPU.o: ScalarFunction.cu
+	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) -DGPU ScalarFunction.cu -o ScalarFunctionGPU.o
 
 gpu.o: gpu.cu
 	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) gpu.cu -o gpu.o
