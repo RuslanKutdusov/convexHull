@@ -22,7 +22,7 @@ typedef std::vector< FP > FPVector;
 #define PI ( FP )M_PI
 
 //
-static const int MAX_GPU_COUNT = 8;
+static const uint32_t MAX_GPU_COUNT = 8;
 
 
 //
@@ -35,38 +35,38 @@ public:
 	void makeConvexMultiThread( const uint32_t& dimX, const uint32_t& numberOfPoints, const uint32_t& jobs );
 
 #ifdef GPU
-	void makeConvexGPU( const int& dimX, const int& numberOfPoints );
+	void makeConvexGPU( const uint32_t& dimX, const uint32_t& numberOfPoints );
 #endif
 
 private:
 #ifdef GPU	
-	int 		hyperplanesArraySize;
+	uint64_t	hyperplanesArraySize;
 	FP* 		hyperplanes;
-	int 		pointsArraySize;
+	uint64_t 	pointsArraySize;
 	FP* 		points;
 	FP* 		d_hyperplanes[ MAX_GPU_COUNT ];
 	FP* 		d_points[ MAX_GPU_COUNT ];
 
-	int 	 	pointsChunksNumber;
-	int 	 	pointsChunksPerDevice;
-	int 	 	pointsChunksForLastDevice;
+	uint32_t  	pointsChunksNumber;
+	uint32_t  	pointsChunksPerDevice;
+	uint32_t  	pointsChunksForLastDevice;
 
 	// особенность суперкомпьютера Уран, 8 видеокарт одного узла по сути разбиты на 2 части
 	// такие, что для видеокарт одной части возможен peer access, но для видеокарт из разных частей - нет.
 	// определяем для каких видеокарт возможен peer access( они разбиваются на части(группы) ). 
 	// выбираем ту группу для работы, кол-во видеокарт в которой больше, чем в другой.
-	std::vector< int > devicesGroups[ 2 ];
+	std::vector< uint32_t > devicesGroups[ 2 ];
 
 	//
-	void 		CopyData( const int& dimX );
-	void 		InitHyperplanes( const int& dimX, const int& numberOfHyperplanes, const FP& dFi );
-	int 		PrepareDevices( const int& neededDeviceNumber );
-	void 		DeviceMemoryPreparing( const int& n, const int& deviceCount );
-	int 		CalcPointsNumberPerDevice( const int& device, const int& deviceCount );
+	void 		CopyData( const uint32_t& dimX );
+	void 		InitHyperplanes( const uint32_t& dimX, const uint32_t& numberOfHyperplanes, const FP& dFi );
+	uint32_t 	PrepareDevices( const uint32_t& neededDeviceNumber );
+	void 		DeviceMemoryPreparing( const uint32_t& n, const uint32_t& deviceCount );
+	uint32_t 	CalcPointsNumberPerDevice( const uint32_t& device, const uint32_t& deviceCount );
 	void 		Synchronize();
-	void 		FirstStage( const int& dimX, const int& numberOfHyperplanes, const int& deviceCount );
-	void 		SecondStage( const int& dimX, const int& numberOfHyperplanes );
-	void 		ThirdStage( const int& dimX, const int& numberOfHyperplanes, const int& deviceCount );
-	void 		GetResult( const int& dimX, const int& deviceCount );
+	void 		FirstStage( const uint32_t& dimX, const uint32_t& numberOfHyperplanes, const uint32_t& deviceCount );
+	void 		SecondStage( const uint32_t& dimX, const uint32_t& numberOfHyperplanes );
+	void 		ThirdStage( const uint32_t& dimX, const uint32_t& numberOfHyperplanes, const uint32_t& deviceCount );
+	void 		GetResult( const uint32_t& dimX, const uint32_t& deviceCount );
 #endif
 };
