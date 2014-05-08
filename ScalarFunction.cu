@@ -86,10 +86,11 @@ __global__ void kernel2( FP* hyperplanes, FP* points, int32_t n, int dimX, int32
 		// xi - iter->first
 		// Ni - hyperplane normal
 		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
-		for( int8_t j = 0; j < dimX; j++ )
-			val -= points[ offsetToPointsChunk + threadIdx.x + j * BLOCK_DIM ] * hyperplanes[ offsetToHyperplane + j * BLOCK_DIM ];
-		val += hyperplanes[ offsetToHyperplane + n * BLOCK_DIM ];
-		val /= hyperplanes[ offsetToHyperplane + ( n - 1 ) * BLOCK_DIM ] + EPSILON;
+		int16_t j = 0;
+		for( ; j < dimX * BLOCK_DIM; j += BLOCK_DIM )
+			val -= points[ offsetToPointsChunk + threadIdx.x + j ] * hyperplanes[ offsetToHyperplane + j ];
+		val += hyperplanes[ offsetToHyperplane + j + BLOCK_DIM ];
+		val /= hyperplanes[ offsetToHyperplane + j ] + EPSILON;
 
 		if( i == 0 )
 		{
