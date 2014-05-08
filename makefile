@@ -1,8 +1,8 @@
-CC = g++ -g
+CC = g++
 NVCC = /opt/cuda-5.5/bin/nvcc
 PRECISION = -DDOUBLE_PRECISION
 CFLAGS = $(BOOST_HEADERS) -O2 -c -Wall -pedantic $(PRECISION)
-CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c -g --ptxas-options=-v $(PRECISION)
+CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c --ptxas-options=-v $(PRECISION)
 LDFLAGS = $(BOOST_LD_PATH) -lpthread -lboost_thread -lboost_system -lboost_serialization
 
 GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
