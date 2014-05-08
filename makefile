@@ -1,5 +1,5 @@
 CC = g++ -g
-NVCC = nvcc
+NVCC = /opt/cuda-5.5/bin/nvcc
 PRECISION = -DDOUBLE_PRECISION
 CFLAGS = $(BOOST_HEADERS) -O2 -c -Wall -pedantic $(PRECISION)
 CFLAGS_GPU = -ccbin gcc $(BOOST_HEADERS) -O2 -c -g --ptxas-options=-v $(PRECISION)
