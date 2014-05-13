@@ -457,6 +457,7 @@ void ScalarFunction::ThirdStage( const uint32_t& dimX, const uint32_t& numberOfH
 	dim3 gridDim, blockDim;
 
 	printf( "Running third kernel...\n" );
+	// циклы объединять не стоит, иначе kernel-ы будут запускаться последовательно
 	for( uint32_t j = 0; j < 2; j++ )
 		for( uint32_t i = 0; i < devicesGroups[ j ].size(); i++ )
 		{
@@ -467,8 +468,20 @@ void ScalarFunction::ThirdStage( const uint32_t& dimX, const uint32_t& numberOfH
 			if( i != 0 )
 			{
 				uint32_t lastDevice = devicesGroups[ j ][ i - 1 ];
+				CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 				CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ device ], device, d_hyperplanes[ lastDevice ], lastDevice, hyperplanesArraySize * sizeof( FP ) ) );
+				CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 			}
+
+		}
+
+	Synchronize( LAUNCH_TIME_COPY_HYPERPLANES );
+
+	for( uint32_t j = 0; j < 2; j++ )
+		for( uint32_t i = 0; i < devicesGroups[ j ].size(); i++ )
+		{
+			uint32_t device = devicesGroups[ j ][ i ];
+			CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 
 			uint32_t pointsPerCurrentDevice = CalcPointsNumberPerDevice( device, deviceCount );
 
@@ -615,6 +628,7 @@ void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& number
 													 "Stage2 1st group", 
 													 "Stage2 2nd group", 
 													 "Stage2          ", 
+													 "Copy hyperplanes",
 													 "Stage3          ", 
 													 "MemCopyDTOH     " };
 	printf( "                 | " );
