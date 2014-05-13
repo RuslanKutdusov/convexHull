@@ -261,10 +261,16 @@ uint32_t ScalarFunction::PrepareDevices( const uint32_t& neededDeviceNumber )
 		if( devicesGroups[ j ].size() == 0 )
 			continue;
 
-		CUDA_CHECK_RETURN( cudaSetDevice( devicesGroups[ j ][ 0 ] ) );
-		for( uint32_t i = 1; i < devicesGroups[ j ].size(); i++ )	
+		for( uint32_t i = 0; i < devicesGroups[ j ].size(); i++ )	
 		{
-			CUDA_CHECK_RETURN( cudaDeviceEnablePeerAccess( devicesGroups[ j ][ i ], 0 ) );
+			CUDA_CHECK_RETURN( cudaSetDevice( devicesGroups[ j ][ i ] ) );
+			for( uint32_t k = 0; k < devicesGroups[ j ].size(); k++ )
+			{
+				if( i == k )
+					continue;
+
+				CUDA_CHECK_RETURN( cudaDeviceEnablePeerAccess( devicesGroups[ j ][ k ], 0 ) );
+			}
 		}
 	}
 
