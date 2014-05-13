@@ -51,6 +51,24 @@ private:
 	uint32_t  	pointsChunksPerDevice;
 	uint32_t  	pointsChunksForLastDevice;
 
+	uint64_t 	start[ MAX_GPU_COUNT ];
+	uint64_t 	stop[ MAX_GPU_COUNT ];
+
+	enum LAUNCH_TIME
+	{
+		LAUNCH_TIME_HTOD = 0,
+		LAUNCH_TIME_STAGE1,
+		LAUNCH_TIME_STAGE2_FIRST_GROUP,
+		LAUNCH_TIME_STAGE2_SECOND_GROUP,
+		LAUNCH_TIME_STAGE2,
+		LAUNCH_TIME_STAGE3,
+		LAUNCH_TIME_DTOH,
+
+		LAUNCH_TIME_COUNT
+	};
+
+	float 		launchTime[ LAUNCH_TIME_COUNT ][ MAX_GPU_COUNT ];
+
 	// особенность суперкомпьютера Уран, 8 видеокарт одного узла по сути разбиты на 2 части
 	// такие, что для видеокарт одной части возможен peer access, но для видеокарт из разных частей - нет.
 	// определяем для каких видеокарт возможен peer access( они разбиваются на части(группы) ). 
@@ -63,7 +81,8 @@ private:
 	uint32_t 	PrepareDevices( const uint32_t& neededDeviceNumber );
 	void 		DeviceMemoryPreparing( const uint32_t& n, const uint32_t& deviceCount );
 	uint32_t 	CalcPointsNumberPerDevice( const uint32_t& device, const uint32_t& deviceCount );
-	void 		Synchronize();
+	void 		Synchronize( LAUNCH_TIME lt );
+	void 		FixLaunchTime( LAUNCH_TIME lt, uint32_t device );
 	void 		FirstStage( const uint32_t& dimX, const uint32_t& numberOfHyperplanes, const uint32_t& deviceCount );
 	void 		SecondStage( const uint32_t& dimX, const uint32_t& numberOfHyperplanes );
 	void 		ThirdStage( const uint32_t& dimX, const uint32_t& numberOfHyperplanes, const uint32_t& deviceCount );

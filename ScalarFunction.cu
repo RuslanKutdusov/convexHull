@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <vector>
+#include <boost/static_assert.hpp>
 
+//
 #define CUDA_CHECK_RETURN( value ) {											\
 	cudaError_t _m_cudaStat = value;										\
 	if ( _m_cudaStat != cudaSuccess ) {										\
@@ -266,6 +268,15 @@ uint32_t ScalarFunction::PrepareDevices( const uint32_t& neededDeviceNumber )
 		}
 	}
 
+	for( uint32_t j = 0; j < 2; j++ )
+		for( uint32_t i = 0; i < devicesGroups[ j ].size(); i++ )
+		{
+			uint32_t device = devicesGroups[ j ][ i ];
+			CUDA_CHECK_RETURN( cudaSetDevice( device ) );
+			CUDA_CHECK_RETURN( cudaEventCreate( ( cudaEvent_t* )&start[ device ] ) );
+    		CUDA_CHECK_RETURN( cudaEventCreate( ( cudaEvent_t* )&stop[ device ] ) );
+    	}
+
 	printf( "Used devices in gpoup 1: %u, group 2: %u\n", devicesGroups[ 0 ].size(), devicesGroups[ 1 ].size() );
 
 	return deviceCount;
@@ -283,6 +294,9 @@ void ScalarFunction::DeviceMemoryPreparing( const uint32_t& n, const uint32_t& d
 			CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 			// optimization
 			CUDA_CHECK_RETURN( cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 ) );
+
+			//
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 
 			//
 			CUDA_CHECK_RETURN( cudaMalloc( &d_hyperplanes[ device ], hyperplanesArraySize * sizeof( FP ) ) );
@@ -304,7 +318,12 @@ void ScalarFunction::DeviceMemoryPreparing( const uint32_t& n, const uint32_t& d
 			uint32_t bytesCount = CalcPointsNumberPerDevice( device, deviceCount ) * n * sizeof( FP );
 			CUDA_CHECK_RETURN( cudaMalloc( &d_points[ device ], bytesCount ) );
 			CUDA_CHECK_RETURN( cudaMemcpy( d_points[ device ], points + arrayOffset, bytesCount, cudaMemcpyHostToDevice ) );
+
+			//
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 		}
+
+	Synchronize( LAUNCH_TIME_HTOD );
 }
 
 
@@ -316,7 +335,7 @@ uint32_t ScalarFunction::CalcPointsNumberPerDevice( const uint32_t& device, cons
 
 
 //
-void ScalarFunction::Synchronize()
+void ScalarFunction::Synchronize( LAUNCH_TIME lt )
 {
 	printf( "Synchronizing...\n" );
 	for( uint32_t j = 0; j < 2; j++ )
@@ -326,7 +345,16 @@ void ScalarFunction::Synchronize()
 			CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 			CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 			CUDA_CHECK_RETURN( cudaGetLastError() );
+
+			FixLaunchTime( lt, device );
 		}
+}
+
+
+//
+void ScalarFunction::FixLaunchTime( LAUNCH_TIME lt, uint32_t device )
+{
+	CUDA_CHECK_RETURN( cudaEventElapsedTime( &launchTime[ lt ][ device ], ( cudaEvent_t )start[ device ], ( cudaEvent_t )stop[ device ] ) );
 }
 
 
@@ -344,10 +372,12 @@ void ScalarFunction::FirstStage( const uint32_t& dimX, const uint32_t& numberOfH
 			CUDA_CHECK_RETURN( cudaSetDevice( device ) );	
 
 			getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 			kernel1<<< gridDim, blockDim >>>( d_hyperplanes[ device ], d_points[ device ], n, dimX, numberOfHyperplanes, CalcPointsNumberPerDevice( device, deviceCount ) );
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 		}
 
-	Synchronize();
+	Synchronize( LAUNCH_TIME_STAGE1 );
 }
 
 
@@ -375,12 +405,16 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 				hostAllocatedMem[ i ] = d_hyperplanes[ devicesGroups[ j ][ i ] ];
 
 			getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 			kernel1_1<<< gridDim, blockDim >>>( hostAllocatedMem, deviceCount, n, numberOfHyperplanes );
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 
 			printf( "Synchronizing...\n" );
 			CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 			CUDA_CHECK_RETURN( cudaGetLastError() );
 			CUDA_CHECK_RETURN( cudaFreeHost( hostAllocatedMem ) );
+
+			j ? FixLaunchTime( LAUNCH_TIME_STAGE2_FIRST_GROUP, device ) : FixLaunchTime( LAUNCH_TIME_STAGE2_SECOND_GROUP, device );
 		}
 	}
 
@@ -400,7 +434,9 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 		CUDA_CHECK_RETURN( cudaMemcpyPeer( hostAllocatedMem[ 1 ], devicesGroups[ 0 ][ 1 ], d_hyperplanes[ srcDevice ], srcDevice, hyperplanesArraySize * sizeof( FP ) ) );
 
 		getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
+		CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 		kernel1_1<<< gridDim, blockDim >>>( hostAllocatedMem, deviceCount, n, numberOfHyperplanes );
+		CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 
 		CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ srcDevice ], srcDevice, hostAllocatedMem[ 0 ], devicesGroups[ 0 ][ 0 ], hyperplanesArraySize * sizeof( FP ) ) );
 
@@ -408,6 +444,8 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 		CUDA_CHECK_RETURN( cudaDeviceSynchronize() );
 		CUDA_CHECK_RETURN( cudaGetLastError() );
 		CUDA_CHECK_RETURN( cudaFreeHost( hostAllocatedMem ) );
+
+		FixLaunchTime( LAUNCH_TIME_STAGE2, device );
 	}
 }
 
@@ -435,11 +473,13 @@ void ScalarFunction::ThirdStage( const uint32_t& dimX, const uint32_t& numberOfH
 			uint32_t pointsPerCurrentDevice = CalcPointsNumberPerDevice( device, deviceCount );
 
 			getGridAndBlockDim( pointsPerCurrentDevice, gridDim, blockDim, device );
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 			kernel2<<< gridDim, blockDim >>>( d_hyperplanes[ device ], d_points[ device ], n, dimX, numberOfHyperplanes, pointsPerCurrentDevice );
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 		}
 
 	//
-	Synchronize();
+	Synchronize( LAUNCH_TIME_STAGE3 );
 }
 
 
@@ -456,13 +496,20 @@ void ScalarFunction::GetResult( const uint32_t& dimX, const uint32_t& deviceCoun
 			CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 
 			//
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
+
+			//
 			uint32_t arrayOffset = pointsChunksPerDevice * BLOCK_DIM * device * n;
 
 			uint32_t bytesCount = CalcPointsNumberPerDevice( device, deviceCount ) * n * sizeof( FP );
 			printf( "Copying result from GPU%d, %d bytes\n", device, bytesCount );
 			CUDA_CHECK_RETURN( cudaMemcpy( points + arrayOffset, d_points[ device ], bytesCount, cudaMemcpyDeviceToHost ) );			
+
+			//
+			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )stop[ device ], 0 ) );
 		}
 
+	Synchronize( LAUNCH_TIME_DTOH );
 
 	// ???
 	uint32_t funcSize = size();
@@ -484,6 +531,15 @@ void ScalarFunction::GetResult( const uint32_t& dimX, const uint32_t& deviceCoun
 //
 void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& numberOfPoints )
 {
+	BOOST_STATIC_ASSERT( sizeof( cudaEvent_t ) == sizeof( start[ 0 ] ) );
+	BOOST_STATIC_ASSERT( sizeof( cudaEvent_t ) == sizeof( stop[ 0 ] ) );
+
+	//
+	for( uint32_t i = 0; i < LAUNCH_TIME_COUNT; i++ )
+		for( uint32_t j = 0; j < MAX_GPU_COUNT; j++ )
+			launchTime[ i ][ j ] = 0.0f;
+
+	//
 	if( dimX == 0 || numberOfPoints == 0 )
 		return;
 	
@@ -541,6 +597,7 @@ void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& number
 		{
 			uint32_t device = devicesGroups[ j ][ i ];
 			CUDA_CHECK_RETURN( cudaSetDevice( device ) ); 
+
 			CUDA_CHECK_RETURN( cudaFree( ( void* )d_hyperplanes[ device ] ) );
 			CUDA_CHECK_RETURN( cudaFree( ( void* )d_points[ device ] ) );
 			//
@@ -552,4 +609,26 @@ void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& number
 	delete[] points;
 
 	printf( "Done\n" );
+
+	const char* launchNames[ LAUNCH_TIME_COUNT ] = { "MemCopyHTOD     ", 
+													 "Stage1          ", 
+													 "Stage2 1st group", 
+													 "Stage2 2nd group", 
+													 "Stage2          ", 
+													 "Stage3          ", 
+													 "MemCopyDTOH     " };
+	printf( "                 | " );
+	for( uint32_t j = 0; j < deviceCount; j++ )
+		printf( "Device%u      | ", j );
+	printf("\n");
+
+	for( int i = 0; i < LAUNCH_TIME_COUNT; i++ )
+	{
+		printf( "%s | ", launchNames[ i ] );
+		for( uint32_t j = 0; j < deviceCount; j++ )
+		{
+			printf("%12f | ", launchTime[ i ][ j ]);
+		}
+		printf("\n");
+	}
 }
