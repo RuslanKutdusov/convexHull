@@ -14,8 +14,8 @@ vis: ScalarFunction.o vis.o
 vis.o: vis.cpp
 	$(CC) $(CFLAGS) vis.cpp -o vis.o
 
-test: ScalarFunctionGPU.o gpu.o test.o
-	$(NVCC) test.o ScalarFunctionGPU.o gpu.o -o test $(LDFLAGS)
+test: ScalarFunction.o ScalarFunctionGPU.o test.o
+	$(NVCC) test.o ScalarFunctionGPU.o ScalarFunction.o -o test $(LDFLAGS)
 
 test.o: test.cpp
 	$(CC) $(CFLAGS) -DGPU test.cpp -o test.o
@@ -31,9 +31,6 @@ ScalarFunction.o: ScalarFunction.cpp
 
 ScalarFunctionGPU.o: ScalarFunction.cu
 	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) -DGPU ScalarFunction.cu -o ScalarFunctionGPU.o
-
-gpu.o: gpu.cu
-	$(NVCC) $(CFLAGS_GPU) $(GENCODE_FLAGS) gpu.cu -o gpu.o
 
 access: access.o
 	$(NVCC) access.o -o access
