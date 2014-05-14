@@ -40,19 +40,19 @@ public:
 
 private:
 #ifdef GPU	
-	uint64_t	hyperplanesArraySize;
-	FP* 		hyperplanes;
-	uint64_t 	pointsArraySize;
-	FP* 		points;
-	FP* 		d_hyperplanes[ MAX_GPU_COUNT ];
-	FP* 		d_points[ MAX_GPU_COUNT ];
+	uint64_t	m_hyperplanesArraySize;
+	FP* 		m_hyperplanes;
+	uint64_t 	m_pointsArraySize;
+	FP* 		m_points;
+	FP* 		m_hyperplanesDevPtr[ MAX_GPU_COUNT ];
+	FP* 		m_pointsDevPtr[ MAX_GPU_COUNT ];
 
-	uint32_t  	pointsChunksNumber;
-	uint32_t  	pointsChunksPerDevice;
-	uint32_t  	pointsChunksForLastDevice;
+	uint32_t  	m_pointsChunksNumber;
+	uint32_t  	m_pointsChunksPerDevice;
+	uint32_t  	m_pointsChunksForLastDevice;
 
-	uint64_t 	start[ MAX_GPU_COUNT ];
-	uint64_t 	stop[ MAX_GPU_COUNT ];
+	uint64_t 	m_start[ MAX_GPU_COUNT ];
+	uint64_t 	m_stop[ MAX_GPU_COUNT ];
 
 	enum LAUNCH_TIME
 	{
@@ -68,13 +68,11 @@ private:
 		LAUNCH_TIME_COUNT
 	};
 
-	float 		launchTime[ LAUNCH_TIME_COUNT ][ MAX_GPU_COUNT ];
+	float 		m_launchTime[ LAUNCH_TIME_COUNT ][ MAX_GPU_COUNT ];
 
 	// особенность суперкомпьютера Уран, 8 видеокарт одного узла по сути разбиты на 2 части
 	// такие, что для видеокарт одной части возможен peer access, но для видеокарт из разных частей - нет.
-	// определяем для каких видеокарт возможен peer access( они разбиваются на части(группы) ). 
-	// выбираем ту группу для работы, кол-во видеокарт в которой больше, чем в другой.
-	std::vector< uint32_t > devicesGroups[ 2 ];
+	std::vector< uint32_t > m_devicesGroups[ 2 ];
 
 	//
 	void 		CopyData( const uint32_t& dimX );
