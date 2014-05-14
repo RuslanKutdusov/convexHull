@@ -110,7 +110,7 @@ __global__ void kernel2( FP* hyperplanes, FP* points, uint32_t n, uint32_t dimX,
 
 
 //
-void getGridAndBlockDim( uint32_t n, dim3& gridDim, dim3& blockDim, uint32_t device )
+void getGridAndBlockDim( uint64_t n, dim3& gridDim, dim3& blockDim, uint32_t device )
 {
 	// gpu hardware limits for compute caps 1.2 and 2.0
 	const uint32_t warpSize = 32;
@@ -119,12 +119,12 @@ void getGridAndBlockDim( uint32_t n, dim3& gridDim, dim3& blockDim, uint32_t dev
 	cudaDeviceProp deviceProp;
 	CUDA_CHECK_RETURN( cudaGetDeviceProperties( &deviceProp, device ) );
 
-	uint32_t warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
+	uint64_t warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
 
-	uint32_t threadsPerBlock = deviceProp.maxThreadsPerMultiProcessor / blocksPerSM;
-	uint32_t warpsPerBlock = threadsPerBlock / warpSize;
+	uint64_t threadsPerBlock = deviceProp.maxThreadsPerMultiProcessor / blocksPerSM;
+	uint64_t warpsPerBlock = threadsPerBlock / warpSize;
 
-	uint32_t blockCount = ( warpCount / warpsPerBlock ) + ( ( ( warpCount % warpsPerBlock ) == 0 ) ? 0 : 1 );
+	uint64_t blockCount = ( warpCount / warpsPerBlock ) + ( ( ( warpCount % warpsPerBlock ) == 0 ) ? 0 : 1 );
 
 	blockDim = dim3( threadsPerBlock, 1, 1 );
 
@@ -137,7 +137,7 @@ void getGridAndBlockDim( uint32_t n, dim3& gridDim, dim3& blockDim, uint32_t dev
 			gridDim.x += 1;
 	}
 
-	printf( "GPU%d: %s, Task size: %u, warp number: %u, threads per block: %u, warps per block: %u, grid: (%d, %d, 1)\n", device, deviceProp.name, n, warpCount, threadsPerBlock, warpsPerBlock, gridDim.x, gridDim.y );
+	printf( "GPU%d: %s, Task size: %llu, warp number: %llu, threads per block: %llu, warps per block: %llu, grid: (%d, %d, 1)\n", device, deviceProp.name, n, warpCount, threadsPerBlock, warpsPerBlock, gridDim.x, gridDim.y );
 }
 
 
@@ -149,7 +149,7 @@ void ScalarFunction::CopyData( const uint32_t& dimX )
 	uint32_t i = 0;
 	for( ScalarFunction::iterator iter = begin(); iter != end(); ++iter, i++ )
 	{
-		uint32_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
+		uint64_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
 
 		for( uint32_t j = 0; j < dimX; j++ )
 			points[ offsetToPoint + j * BLOCK_DIM ] = iter->first[ j ];
@@ -159,7 +159,7 @@ void ScalarFunction::CopyData( const uint32_t& dimX )
 
 	for( ; i < pointsArraySize / n; i++ )
 	{
-		uint32_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
+		uint64_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
 
 		for( uint32_t j = 0; j < dimX; j++ )
 			points[ offsetToPoint + j * BLOCK_DIM ] = 0.0;
@@ -178,7 +178,7 @@ void ScalarFunction::InitHyperplanes( const uint32_t& dimX, const uint32_t& numb
 
 	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
-		uint32_t offset = ( i - i % BLOCK_DIM ) * ( n + 1 ) + ( i % BLOCK_DIM );
+		uint64_t offset = ( i - i % BLOCK_DIM ) * ( n + 1 ) + ( i % BLOCK_DIM );
 
 		for( uint32_t j = 0; j < n; j++ )
 		{
@@ -318,10 +318,10 @@ void ScalarFunction::DeviceMemoryPreparing( const uint32_t& n, const uint32_t& d
 				CUDA_CHECK_RETURN( cudaMemcpyPeer( d_hyperplanes[ device ], device, d_hyperplanes[ lastDevice ], lastDevice, hyperplanesArraySize * sizeof( FP ) ) );
 			}
 
-			uint32_t arrayOffset = pointsChunksPerDevice * BLOCK_DIM * device * n;
+			uint64_t arrayOffset = pointsChunksPerDevice * BLOCK_DIM * device * n;
 
 			//
-			uint32_t bytesCount = CalcPointsNumberPerDevice( device, deviceCount ) * n * sizeof( FP );
+			uint64_t bytesCount = CalcPointsNumberPerDevice( device, deviceCount ) * n * sizeof( FP );
 			CUDA_CHECK_RETURN( cudaMalloc( &d_points[ device ], bytesCount ) );
 			CUDA_CHECK_RETURN( cudaMemcpy( d_points[ device ], points + arrayOffset, bytesCount, cudaMemcpyHostToDevice ) );
 
@@ -518,10 +518,10 @@ void ScalarFunction::GetResult( const uint32_t& dimX, const uint32_t& deviceCoun
 			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )start[ device ], 0 ) );
 
 			//
-			uint32_t arrayOffset = pointsChunksPerDevice * BLOCK_DIM * device * n;
+			uint64_t arrayOffset = pointsChunksPerDevice * BLOCK_DIM * device * n;
 
-			uint32_t bytesCount = CalcPointsNumberPerDevice( device, deviceCount ) * n * sizeof( FP );
-			printf( "Copying result from GPU%d, %d bytes\n", device, bytesCount );
+			uint64_t bytesCount = CalcPointsNumberPerDevice( device, deviceCount ) * n * sizeof( FP );
+			printf( "Copying result from GPU%u, %llu bytes\n", device, bytesCount );
 			CUDA_CHECK_RETURN( cudaMemcpy( points + arrayOffset, d_points[ device ], bytesCount, cudaMemcpyDeviceToHost ) );			
 
 			//
@@ -537,7 +537,7 @@ void ScalarFunction::GetResult( const uint32_t& dimX, const uint32_t& deviceCoun
 	FPVector x( dimX );
 	for( uint32_t i = 0; i < funcSize; i++ )
 	{
-		uint32_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
+		uint64_t offsetToPoint = ( i - i % BLOCK_DIM ) * n + ( i % BLOCK_DIM );
 
 		for( uint32_t j = 0; j < dimX; j++ )
 			x[ j ] = points[ offsetToPoint + j * BLOCK_DIM ];
