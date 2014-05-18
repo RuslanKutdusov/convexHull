@@ -420,7 +420,7 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 			CUDA_CHECK_RETURN( cudaGetLastError() );
 			CUDA_CHECK_RETURN( cudaFreeHost( hostAllocatedMem ) );
 
-			j ? FixLaunchTime( LAUNCH_TIME_STAGE2_FIRST_GROUP, device ) : FixLaunchTime( LAUNCH_TIME_STAGE2_SECOND_GROUP, device );
+			j ? FixLaunchTime( LAUNCH_TIME_STAGE2_SECOND_GROUP, device ) : FixLaunchTime( LAUNCH_TIME_STAGE2_FIRST_GROUP, device );
 		}
 	}
 
