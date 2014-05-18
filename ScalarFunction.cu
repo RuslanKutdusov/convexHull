@@ -52,20 +52,30 @@ __global__ void FirstStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 
 
 //
-__global__ void SecondStageKernel( FP** hyperplanes, uint32_t deviceCount, uint32_t n, uint32_t numberOfHyperplanes )
+__global__ void SecondStageKernel( FP** hyperplanes, uint32_t deviceCount, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, bool makeDivisions )
 {
 	if( blockIdx.x * blockDim.x + threadIdx.x >= numberOfHyperplanes )
 		return;
 
-	uint32_t offset = blockIdx.x * blockDim.x * ( n + 1 ) + threadIdx.x + n * BLOCK_DIM;
+	uint32_t offset = blockIdx.x * blockDim.x * ( n + 1 ) + threadIdx.x;
 
-	FP resultDistance = hyperplanes[ 0 ][ offset ];
+	FP resultDistance = hyperplanes[ 0 ][ offset + n * BLOCK_DIM ];
 	for( uint32_t i = 1; i < deviceCount; i++ )
 	{
-		if( hyperplanes[ i ][ offset ] > resultDistance )
-			resultDistance = hyperplanes[ i ][ offset ];
+		if( hyperplanes[ i ][ offset + n * BLOCK_DIM ] > resultDistance )
+			resultDistance = hyperplanes[ i ][ offset + n * BLOCK_DIM ];
 	}
-	hyperplanes[ 0 ][ offset ] = resultDistance;
+
+	if( makeDivisions )
+	{
+		FP Nn_1 = hyperplanes[ 0 ][ offset + dimX * BLOCK_DIM ] + EPSILON;
+		uint16_t j = 0;
+		for( ; j < dimX * BLOCK_DIM; j += BLOCK_DIM )
+			hyperplanes[ 0 ][ offset + j ] = hyperplanes[ 0 ][ offset + j ] / Nn_1;
+		hyperplanes[ 0 ][ offset + n * BLOCK_DIM ] = resultDistance / Nn_1;
+	}
+	else
+		hyperplanes[ 0 ][ offset + n * BLOCK_DIM ] = resultDistance;	
 }
 
 
@@ -87,12 +97,11 @@ __global__ void ThirdStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 		FP val = 0.0;
 		// xi - iter->first
 		// Ni - hyperplane normal
-		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + xn ) / N(n - 1)
+		// val = x(n - 1) = ( -N0*x0 - N1*x1 - ... - N(n - 2)*x(n - 2) + d ) / N(n - 1)
 		uint16_t j = 0;
 		for( ; j < dimX * BLOCK_DIM; j += BLOCK_DIM )
 			val -= points[ offsetToPointsChunk + threadIdx.x + j ] * hyperplanes[ offsetToHyperplane + j ];
 		val += hyperplanes[ offsetToHyperplane + j + BLOCK_DIM ];
-		val /= hyperplanes[ offsetToHyperplane + j ] + EPSILON;
 
 		if( i == 0 )
 		{
@@ -395,9 +404,9 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 
 	for( uint32_t j = 0; j < 2; j++ )
 	{
-		// no need to run next kernel if device only one
 		uint32_t deviceCount = m_devicesGroups[ j ].size();
-		if( deviceCount > 1 )
+		bool makeDivisions = m_devicesGroups[ 0 ].size() > 0 && m_devicesGroups[ 1 ].size() == 0 && j == 0;
+		if( deviceCount > 1 || makeDivisions )
 		{
 			//
 			printf( "Running second stage kernel...\n" );
@@ -412,7 +421,7 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 
 			getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
 			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )m_start[ device ], 0 ) );
-			SecondStageKernel<<< gridDim, blockDim >>>( hostAllocatedMem, deviceCount, n, numberOfHyperplanes );
+			SecondStageKernel<<< gridDim, blockDim >>>( hostAllocatedMem, deviceCount, n, dimX, numberOfHyperplanes, makeDivisions );
 			CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )m_stop[ device ], 0 ) );
 
 			printf( "Synchronizing...\n" );
@@ -441,7 +450,7 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 
 		getGridAndBlockDim( numberOfHyperplanes, gridDim, blockDim, device );
 		CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )m_start[ device ], 0 ) );
-		SecondStageKernel<<< gridDim, blockDim >>>( hostAllocatedMem, deviceCount, n, numberOfHyperplanes );
+		SecondStageKernel<<< gridDim, blockDim >>>( hostAllocatedMem, deviceCount, n, dimX, numberOfHyperplanes, true );
 		CUDA_CHECK_RETURN( cudaEventRecord( ( cudaEvent_t )m_stop[ device ], 0 ) );
 
 		CUDA_CHECK_RETURN( cudaMemcpyPeer( m_hyperplanesDevPtr[ srcDevice ], srcDevice, hostAllocatedMem[ 0 ], m_devicesGroups[ 0 ][ 0 ], m_hyperplanesArraySize * sizeof( FP ) ) );
