@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <vector>
 #include <boost/static_assert.hpp>
+#include <math_constants.h>
 
 //
 #define CUDA_CHECK_RETURN( value ) {											\
@@ -28,7 +29,7 @@ __global__ void FirstStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 
 	uint32_t offsetToHyperplanesChunk = blockIdx.x * blockDim.x * ( n + 1 );
 
-	FP resultDistance = 0.0;
+	FP resultDistance = -CUDART_INF;
 	for( uint32_t k = 0; k < numberOfPoints * n; k += n * BLOCK_DIM )
 		#pragma unroll
 		for( uint32_t i = 0; i < BLOCK_DIM; i++ )
@@ -87,8 +88,7 @@ __global__ void ThirdStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 
 	uint32_t offsetToPointsChunk = ( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y ) * n;
 
-	FP funcVal = points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ];
-	FP convexVal = funcVal;
+	FP convexVal = CUDART_INF;
 
 	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
@@ -103,18 +103,12 @@ __global__ void ThirdStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 			val -= points[ offsetToPointsChunk + threadIdx.x + j ] * hyperplanes[ offsetToHyperplane + j ];
 		val += hyperplanes[ offsetToHyperplane + j + BLOCK_DIM ];
 
-		if( i == 0 )
-		{
-			convexVal = val;
-			continue;
-		}
-
-		if( val < convexVal && val >= funcVal )
+		if( val < convexVal )
 			convexVal = val;
 	}
 
-
-	points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ] = convexVal;
+	FP funcVal = points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ];
+	points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ] = convexVal > funcVal ? convexVal : funcVal;
 }
 
 
