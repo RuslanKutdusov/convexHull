@@ -24,10 +24,10 @@ const uint32_t MAX_THREADS_PER_DEVICE = 1536;
 //
 __global__ void FirstStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, uint32_t numberOfPoints )
 {
-	if( blockIdx.x * blockDim.x + threadIdx.x >= numberOfHyperplanes )
+	if( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x >= numberOfHyperplanes )
 		return;
 
-	uint32_t offsetToHyperplanesChunk = blockIdx.x * blockDim.x * ( n + 1 );
+	uint32_t offsetToHyperplanesChunk = ( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y ) * ( n + 1 );
 
 	FP resultDistance = -CUDART_INF;
 	for( uint32_t k = 0; k < numberOfPoints * n; k += n * BLOCK_DIM )
@@ -55,10 +55,10 @@ __global__ void FirstStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 //
 __global__ void SecondStageKernel( FP** hyperplanes, uint32_t deviceCount, uint32_t n, uint32_t dimX, uint32_t numberOfHyperplanes, bool makeDivisions )
 {
-	if( blockIdx.x * blockDim.x + threadIdx.x >= numberOfHyperplanes )
+	if( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y + threadIdx.x >= numberOfHyperplanes )
 		return;
 
-	uint32_t offset = blockIdx.x * blockDim.x * ( n + 1 ) + threadIdx.x;
+	uint32_t offset = ( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y ) * ( n + 1 ) + threadIdx.x;
 
 	FP resultDistance = hyperplanes[ 0 ][ offset + n * BLOCK_DIM ];
 	for( uint32_t i = 1; i < deviceCount; i++ )
