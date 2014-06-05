@@ -35,8 +35,9 @@ FP g_convexHullMinVal = FLT_MAX;
 FP g_convexHullMaxVal = -FLT_MAX;
 
 //
-size_t g_vertexNumber;
+size_t g_funcVertexNumber;
 GLuint g_funcVBO;
+size_t g_convexVertexNumber;
 GLuint g_convexHullVBO;
 
 //
@@ -109,8 +110,8 @@ void main_loop_function()
          glEnableClientState( GL_COLOR_ARRAY );
 
          glVertexPointer( 3, GL_FLOAT, 0, 0 );
-         glColorPointer( 3, GL_FLOAT, 0, (void*)( sizeof( Vertex ) * g_vertexNumber ) );
-         glDrawArrays( GL_POINTS, 0, g_vertexNumber );  
+         glColorPointer( 3, GL_FLOAT, 0, (void*)( sizeof( Vertex ) * g_funcVertexNumber ) );
+         glDrawArrays( GL_POINTS, 0, g_funcVertexNumber );  
 
          glDisableClientState( GL_VERTEX_ARRAY );
          glDisableClientState( GL_COLOR_ARRAY );
@@ -124,8 +125,8 @@ void main_loop_function()
          glEnableClientState( GL_COLOR_ARRAY );
 
          glVertexPointer( 3, GL_FLOAT, 0, 0 );
-         glColorPointer( 3, GL_FLOAT, 0, (void*)( sizeof( Vertex ) * g_vertexNumber ) );
-         glDrawArrays( GL_POINTS, 0, g_vertexNumber );  
+         glColorPointer( 3, GL_FLOAT, 0, (void*)( sizeof( Vertex ) * g_convexVertexNumber ) );
+         glDrawArrays( GL_POINTS, 0, g_convexVertexNumber );  
          
          glDisableClientState( GL_VERTEX_ARRAY );
          glDisableClientState( GL_COLOR_ARRAY );
@@ -259,12 +260,13 @@ void GenBuffer( GLuint* vbo, size_t size, Vertex* vertex, Vertex* color )
 //
 void CreateBuffers()
 {
-   g_vertexNumber = g_func.size();
+   g_funcVertexNumber = g_func.size();
+   g_convexVertexNumber = g_convexHull.size();
 
-   Vertex* funcVertexData = new Vertex[ g_vertexNumber ];
-   Vertex* funcColorData = new Vertex[ g_vertexNumber ];
-   Vertex* convexHullVertexData = new Vertex[ g_vertexNumber ];
-   Vertex* convexHullColorData = new Vertex[ g_vertexNumber ];
+   Vertex* funcVertexData = new Vertex[ g_funcVertexNumber ];
+   Vertex* funcColorData = new Vertex[ g_funcVertexNumber ];
+   Vertex* convexHullVertexData = new Vertex[ g_convexVertexNumber ];
+   Vertex* convexHullColorData = new Vertex[ g_convexVertexNumber ];
 
    size_t i = 0;
    for( ScalarFunction::const_iterator iter = g_func.begin(); iter != g_func.end(); ++iter )
@@ -288,8 +290,8 @@ void CreateBuffers()
       i++;
    }   
 
-   GenBuffer( &g_funcVBO, g_vertexNumber, funcVertexData, funcColorData );
-   GenBuffer( &g_convexHullVBO, g_vertexNumber, convexHullVertexData, convexHullColorData );
+   GenBuffer( &g_funcVBO, g_funcVertexNumber, funcVertexData, funcColorData );
+   GenBuffer( &g_convexHullVBO, g_convexVertexNumber, convexHullVertexData, convexHullColorData );
 
    delete[] funcVertexData;
    delete[] funcColorData;
