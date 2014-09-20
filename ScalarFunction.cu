@@ -88,7 +88,8 @@ __global__ void ThirdStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 
 	uint32_t offsetToPointsChunk = ( blockIdx.x * blockDim.x + gridDim.x * blockDim.x * blockIdx.y ) * n;
 
-	FP convexVal = CUDART_INF;
+	FP convexVal = MAX_VAL;
+	FP funcVal = points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ];
 
 	for( uint32_t i = 0; i < numberOfHyperplanes; i++ )
 	{
@@ -103,12 +104,11 @@ __global__ void ThirdStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 			val -= points[ offsetToPointsChunk + threadIdx.x + j ] * hyperplanes[ offsetToHyperplane + j ];
 		val += hyperplanes[ offsetToHyperplane + j + BLOCK_DIM ];
 
-		if( val < convexVal )
+		if( val < convexVal && val >= funcVal )
 			convexVal = val;
 	}
 
-	FP funcVal = points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ];
-	points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ] = convexVal > funcVal ? convexVal : funcVal;
+	points[ offsetToPointsChunk + threadIdx.x + ( n - 1 ) * BLOCK_DIM ] = convexVal;
 }
 
 
