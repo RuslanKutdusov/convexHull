@@ -117,14 +117,13 @@ void getGridAndBlockDim( uint32_t n, dim3& gridDim, dim3& blockDim, uint32_t dev
 {
 	// gpu hardware limits for compute caps 1.2 and 2.0
 	const uint32_t warpSize = 32;
-	const uint32_t blocksPerSM = 8;
 
 	cudaDeviceProp deviceProp;
 	CUDA_CHECK_RETURN( cudaGetDeviceProperties( &deviceProp, device ) );
 
 	uint32_t warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
 
-	uint32_t threadsPerBlock = deviceProp.maxThreadsPerMultiProcessor / blocksPerSM;
+	uint32_t threadsPerBlock = BLOCK_DIM;
 	uint32_t warpsPerBlock = threadsPerBlock / warpSize;
 
 	uint32_t blockCount = ( warpCount / warpsPerBlock ) + ( ( ( warpCount % warpsPerBlock ) == 0 ) ? 0 : 1 );
