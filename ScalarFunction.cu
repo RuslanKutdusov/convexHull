@@ -136,8 +136,8 @@ void getGridAndBlockDim( uint32_t n, dim3& gridDim, dim3& blockDim, uint32_t dev
 	if( blockCount > ( uint32_t )deviceProp.maxGridSize[ 0 ] )
 	{
 		gridDim.x = gridDim.y = ( uint32_t )sqrtf( ( float )blockCount );
-		if( gridDim.x * gridDim.x < blockCount )
-			gridDim.x += 1;
+		if( gridDim.x * gridDim.y < blockCount )
+			gridDim.x = ( blockCount / gridDim.x ) + ( ( ( blockCount % gridDim.x ) == 0 ) ? 0 : 1 );
 	}
 
 	printf( "GPU%d: %s, Task size: %u, warp number: %u, threads per block: %u, warps per block: %u, grid: (%d, %d, 1)\n", device, deviceProp.name, n, warpCount, threadsPerBlock, warpsPerBlock, gridDim.x, gridDim.y );
@@ -194,6 +194,7 @@ void ScalarFunction::InitHyperplanes( const uint32_t& dimX, const uint32_t& numb
 			if( j != n - 1 )
 				*normalComponent *= cos( fi[ j ] );
 		}
+		m_hyperplanes[ offset + n * BLOCK_DIM ] = 0.0f;
 
 		// not good enough
 		bool shift = true;
