@@ -22,7 +22,7 @@
 typedef std::vector< FP > FPVector;
 
 //
-#define PI ( FP )M_PI
+#define PI ( FP )3.14159265358979323846
 
 //
 static const uint32_t MAX_GPU_COUNT = 8;
@@ -75,12 +75,12 @@ private:
 
 	// особенность суперкомпьютера Уран, 8 видеокарт одного узла по сути разбиты на 2 части
 	// такие, что для видеокарт одной части возможен peer access, но для видеокарт из разных частей - нет.
-	std::vector< uint32_t > m_devicesGroups[ 2 ];
+	std::vector< int32_t > m_devicesGroups[ 2 ];
 
 	//
 	void 		CopyData( const uint32_t& dimX );
 	void 		InitHyperplanes( const uint32_t& dimX, const uint32_t& numberOfHyperplanes, const FP& dFi );
-	uint32_t 	PrepareDevices( const uint32_t& neededDeviceNumber );
+	uint32_t 	PrepareDevices( const int32_t& neededDeviceNumber );
 	void 		DeviceMemoryPreparing( const uint32_t& n, const uint32_t& deviceCount );
 	uint32_t 	CalcPointsNumberPerDevice( const uint32_t& device, const uint32_t& deviceCount );
 	void 		Synchronize( LAUNCH_TIME lt );

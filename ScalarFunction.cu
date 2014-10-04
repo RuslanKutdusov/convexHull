@@ -113,7 +113,7 @@ __global__ void ThirdStageKernel( FP* hyperplanes, FP* points, uint32_t n, uint3
 
 
 //
-void getGridAndBlockDim( uint64_t n, dim3& gridDim, dim3& blockDim, uint32_t device )
+void getGridAndBlockDim( uint32_t n, dim3& gridDim, dim3& blockDim, uint32_t device )
 {
 	// gpu hardware limits for compute caps 1.2 and 2.0
 	const uint32_t warpSize = 32;
@@ -122,25 +122,25 @@ void getGridAndBlockDim( uint64_t n, dim3& gridDim, dim3& blockDim, uint32_t dev
 	cudaDeviceProp deviceProp;
 	CUDA_CHECK_RETURN( cudaGetDeviceProperties( &deviceProp, device ) );
 
-	uint64_t warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
+	uint32_t warpCount = ( n / warpSize ) + ( ( ( n % warpSize ) == 0 ) ? 0 : 1 );
 
-	uint64_t threadsPerBlock = deviceProp.maxThreadsPerMultiProcessor / blocksPerSM;
-	uint64_t warpsPerBlock = threadsPerBlock / warpSize;
+	uint32_t threadsPerBlock = deviceProp.maxThreadsPerMultiProcessor / blocksPerSM;
+	uint32_t warpsPerBlock = threadsPerBlock / warpSize;
 
-	uint64_t blockCount = ( warpCount / warpsPerBlock ) + ( ( ( warpCount % warpsPerBlock ) == 0 ) ? 0 : 1 );
+	uint32_t blockCount = ( warpCount / warpsPerBlock ) + ( ( ( warpCount % warpsPerBlock ) == 0 ) ? 0 : 1 );
 
 	blockDim = dim3( threadsPerBlock, 1, 1 );
 
 	gridDim = dim3( blockCount, 1, 1 );
 
-	if( blockCount > deviceProp.maxGridSize[ 0 ] )
+	if( blockCount > ( uint32_t )deviceProp.maxGridSize[ 0 ] )
 	{
-		gridDim.x = gridDim.y = sqrt( blockCount );
+		gridDim.x = gridDim.y = ( uint32_t )sqrtf( ( float )blockCount );
 		if( gridDim.x * gridDim.x < blockCount )
 			gridDim.x += 1;
 	}
 
-	printf( "GPU%d: %s, Task size: %llu, warp number: %llu, threads per block: %llu, warps per block: %llu, grid: (%d, %d, 1)\n", device, deviceProp.name, n, warpCount, threadsPerBlock, warpsPerBlock, gridDim.x, gridDim.y );
+	printf( "GPU%d: %s, Task size: %u, warp number: %u, threads per block: %u, warps per block: %u, grid: (%d, %d, 1)\n", device, deviceProp.name, n, warpCount, threadsPerBlock, warpsPerBlock, gridDim.x, gridDim.y );
 }
 
 
@@ -218,7 +218,7 @@ void ScalarFunction::InitHyperplanes( const uint32_t& dimX, const uint32_t& numb
 
 
 //
-uint32_t ScalarFunction::PrepareDevices( const uint32_t& neededDeviceNumber )
+uint32_t ScalarFunction::PrepareDevices( const int32_t& neededDeviceNumber )
 {
 	int deviceCount;
 	CUDA_CHECK_RETURN( cudaGetDeviceCount( &deviceCount ) );
@@ -232,7 +232,7 @@ uint32_t ScalarFunction::PrepareDevices( const uint32_t& neededDeviceNumber )
 	// 
 	CUDA_CHECK_RETURN( cudaSetDevice( 0 ) );
 	m_devicesGroups[ 0 ].push_back( 0 );
-	for( uint32_t j = 1; j < deviceCount; j++ )
+	for( int32_t j = 1; j < deviceCount; j++ )
 	{
 		int accessible;
 		cudaDeviceCanAccessPeer( &accessible, j, 0 );
@@ -246,7 +246,7 @@ uint32_t ScalarFunction::PrepareDevices( const uint32_t& neededDeviceNumber )
 	{
 		if( neededDeviceNumber <= m_devicesGroups[ 0 ].size() )
 		{
-			uint32_t devicesToRemove = m_devicesGroups[ 0 ].size() - neededDeviceNumber;
+			uint32_t devicesToRemove = ( uint32_t )m_devicesGroups[ 0 ].size() - neededDeviceNumber;
 			m_devicesGroups[ 0 ].erase( m_devicesGroups[ 0 ].end() - devicesToRemove, m_devicesGroups[ 0 ].end() );
 			m_devicesGroups[ 1 ].clear();
 		}
@@ -398,14 +398,14 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 
 	for( uint32_t j = 0; j < 2; j++ )
 	{
-		uint32_t deviceCount = m_devicesGroups[ j ].size();
+		uint32_t deviceCount = ( uint32_t )m_devicesGroups[ j ].size();
 		bool makeDivisions = m_devicesGroups[ 0 ].size() > 0 && m_devicesGroups[ 1 ].size() == 0 && j == 0;
 		if( deviceCount > 1 || makeDivisions )
 		{
 			//
 			printf( "Running second stage kernel...\n" );
 
-			uint32_t device = m_devicesGroups[ j ][ 0 ];
+			int32_t device = m_devicesGroups[ j ][ 0 ];
 			CUDA_CHECK_RETURN( cudaSetDevice( device ) );
 
 			FP** hostAllocatedMem;
@@ -430,7 +430,7 @@ void ScalarFunction::SecondStage( const uint32_t& dimX, const uint32_t& numberOf
 	if( m_devicesGroups[ 1 ].size() > 0 )
 	{
 		printf( "Running second stage kernel...\n" );
-		uint32_t device = m_devicesGroups[ 0 ][ 0 ];
+		int32_t device = m_devicesGroups[ 0 ][ 0 ];
 		uint32_t deviceCount = 2;
 		CUDA_CHECK_RETURN( cudaSetDevice( device ) );		
 
@@ -534,7 +534,7 @@ void ScalarFunction::GetResult( const uint32_t& dimX, const uint32_t& deviceCoun
 	Synchronize( LAUNCH_TIME_DTOH );
 
 	// ???
-	uint32_t funcSize = size();
+	uint32_t funcSize = ( uint32_t )size();
 	clear();
 	printf( "Storing result...\n" );	
 	FPVector x( dimX );
@@ -569,7 +569,7 @@ void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& number
 
 	uint32_t n = dimX + 1; // space dimension
 
-	uint32_t numberOfHyperplanes = pow( numberOfPoints, dimX );
+	uint32_t numberOfHyperplanes = ( uint32_t )powf( ( float )numberOfPoints, ( float )dimX );
 
 	// first x0.. x(n - 2) elements are independent vars. in 2D it will be x
 	// x(n - 1) element dependent var. . in 2D it will be y
@@ -577,7 +577,7 @@ void ScalarFunction::makeConvexGPU( const uint32_t& dimX, const uint32_t& number
 	m_hyperplanesArraySize = ( numberOfHyperplanes + ( ( numberOfHyperplanes % BLOCK_DIM == 0 ) ? 0 : BLOCK_DIM - numberOfHyperplanes % BLOCK_DIM ) ) * ( n + 1 );
 	m_hyperplanes = new FP[ m_hyperplanesArraySize ];
 
-	uint32_t pointsNum = ( size() + ( ( size() % BLOCK_DIM == 0 ) ? 0 : BLOCK_DIM - size() % BLOCK_DIM ) );
+	uint32_t pointsNum = ( ( uint32_t )size() + ( ( ( uint32_t )size() % BLOCK_DIM == 0 ) ? 0 : BLOCK_DIM - ( uint32_t )size() % BLOCK_DIM ) );
 	m_pointsArraySize = pointsNum * n;
 	m_points = new FP[ m_pointsArraySize ];
 
