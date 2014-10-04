@@ -9,9 +9,11 @@
 	typedef float FP;
 	// пришлось умножить epsilon на 4.0(взято с потолка) из-за вынесения деления(оптимизация) из ThirdStageKernel в SecondStageKernel, т.к иначе из-за нормалей вида (x,y,0.0) в результате получаем NaN
 	#define EPSILON ( FLT_MIN * 4.0 ) 
+	#define MAX_VAL FLT_MAX
 #elif defined( DOUBLE_PRECISION )
 	typedef double FP;
 	#define EPSILON ( DBL_MIN * 4.0 )
+	#define MAX_VAL DBL_MAX
 #else
 	#error "Unspecified precision"
 #endif
